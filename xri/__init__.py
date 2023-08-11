@@ -1,0 +1,341 @@
+#!/usr/bin/env python3
+# -*- encoding: utf-8 -*-
+
+# Copyright 2023, Nigel Small
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+from collections import namedtuple
+
+
+VERSION = 0.1
+
+
+URI = namedtuple("URI", ["scheme", "authority", "path", "query", "fragment"])
+URI.UNRESERVED = (b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                  b"abcdefghijklmnopqrstuvwxyz"
+                  b"0123456789-._~")                # RFC 3986 § 2.3.
+
+IRI = namedtuple("IRI", ["scheme", "authority", "path", "query", "fragment"])
+IRI.UNRESERVED = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                  "abcdefghijklmnopqrstuvwxyz"
+                  "0123456789-._~")                # RFC 3986 § 2.3.
+
+URI_SYMBOLS = type("URISymbols", (), {
+    "EMPTY": b"",
+    "SLASH": b"/",
+    "DOT_SLASH": b"./",
+    "DOT_DOT_SLASH": b"../",
+    "SLASH_DOT_SLASH": b"/./",
+    "SLASH_DOT_DOT_SLASH": b"/../",
+    "SLASH_DOT_DOT": b"/..",
+    "SLASH_DOT": b"/.",
+    "DOT": b".",
+    "DOT_DOT": b"..",
+    "COLON": b":",
+    "QUERY": b"?",
+    "HASH": b"#",
+    "SLASH_SLASH": b"//",
+})()
+
+IRI_SYMBOLS = type("IRISymbols", (), {
+    "EMPTY": "",
+    "SLASH": "/",
+    "DOT_SLASH": "./",
+    "DOT_DOT_SLASH": "../",
+    "SLASH_DOT_SLASH": "/./",
+    "SLASH_DOT_DOT_SLASH": "/../",
+    "SLASH_DOT_DOT": "/..",
+    "SLASH_DOT": "/.",
+    "DOT": ".",
+    "DOT_DOT": "..",
+    "COLON": ":",
+    "QUERY": "?",
+    "HASH": "#",
+    "SLASH_SLASH": "//",
+})()
+
+
+def percent_encode(string, safe=b"/"):
+    """ Percent encode a string of data, optionally keeping certain characters
+    unencoded.
+
+    # RFC 3986 § 2.1.
+
+    """
+    if isinstance(string, str):
+        string = string.encode("utf-8")
+    assert isinstance(string, (bytes, bytearray))
+    if isinstance(safe, str):
+        safe = safe.encode("ascii", "ignore")
+    assert isinstance(safe, (bytes, bytearray))
+    safe += URI.UNRESERVED
+    return "".join(chr(ch) if ch in safe else f"%{ch:02X}"
+                   for ch in string)
+
+
+def percent_decode(data):
+    """ Percent decode a string of data.
+
+    Examples:
+
+        >>> percent_decode("Laguna%20Beach")
+        'Laguna Beach'
+
+        >>> percent_decode("20%25%20of%20%24100%20%3D%20%2420")
+        '20% of $100 = $20'
+
+        >>> percent_decode("nothing-to-decode")
+        'nothing-to-decode'
+
+    """
+    out = []
+    p = 0
+    size = len(data)
+    while p < size:
+        q = data.find("%", p)
+        if q == -1:
+            out.append(data[p:])
+            p = size + 1
+        else:
+            out.append(data[p:q])
+            p = q + 3
+            char_hex = data[(q + 1):p]
+            if len(char_hex) < 2:
+                raise ValueError(f"Illegal percent-encoded octet '%{char_hex}' at index {q} (premature end of string)")
+            try:
+                char_code = int(char_hex, 16)
+            except ValueError:
+                raise ValueError(f"Illegal percent-encoded octet '%{char_hex}' at index {q}")
+            else:
+                out.append(chr(char_code))
+    return "".join(out)
+
+
+def _parse(string, symbols):
+    scheme, colon, scheme_specific_part = string.partition(symbols.COLON)
+    if not colon:
+        scheme, scheme_specific_part = None, scheme
+    auth_path_query, hash_sign, fragment = scheme_specific_part.partition(symbols.HASH)
+    if not hash_sign:
+        fragment = None
+    hierarchical_part, question_mark, query = auth_path_query.partition(symbols.QUERY)
+    if not question_mark:
+        query = None
+    if hierarchical_part.startswith(symbols.SLASH_SLASH):
+        hierarchical_part = hierarchical_part[2:]
+        try:
+            slash = hierarchical_part.index(symbols.SLASH)
+        except ValueError:
+            authority = hierarchical_part
+            path = symbols.EMPTY
+        else:
+            authority = hierarchical_part[:slash]
+            path = hierarchical_part[slash:]
+    else:
+        authority = None
+        path = hierarchical_part
+    return scheme, authority, path, query, fragment
+
+
+URI.parse = classmethod(lambda cls, string: cls(*_parse(string, URI_SYMBOLS)))
+IRI.parse = classmethod(lambda cls, string: cls(*_parse(string, IRI_SYMBOLS)))
+
+
+def xri(value):
+    """ Create a URI or IRI based on a given `value`.
+
+    If the value is already a URI value, an IRI value, or None, this is
+    returned directly without change. If the value is a `str` object then
+    an IRI is generated by parsing that string; similarly, a `bytes` or
+    `bytearray` object is parsed to create a URI.
+
+    :param value:
+    :return: URI or IRI value
+    :raise TypeError: if the supplied value is not of a supported type
+    """
+    if isinstance(value, (URI, IRI)):
+        return value
+    elif isinstance(value, str):
+        return IRI.parse(value)
+    elif isinstance(value, (bytes, bytearray)):
+        return URI.parse(value)
+    elif value is None:
+        return None
+    else:
+        raise TypeError("Resource identifier must be of a string type")
+
+
+def uri(value):
+    if isinstance(value, URI):
+        return value
+    elif isinstance(value, IRI):
+        return URI.parse(bytes(value))
+    elif isinstance(value, str):
+        return URI.parse(value.encode("utf-8"))
+    elif isinstance(value, (bytes, bytearray)):
+        return URI.parse(value)
+    elif value is None:
+        return None
+    else:
+        raise TypeError("Resource identifier must be of a string type")
+
+
+def iri(value):
+    if isinstance(value, IRI):
+        return value
+    elif isinstance(value, URI):
+        return IRI.parse(str(value))
+    elif isinstance(value, str):
+        return IRI.parse(value)
+    elif isinstance(value, (bytes, bytearray)):
+        return IRI.parse(value.decode("utf-8"))
+    elif value is None:
+        return None
+    else:
+        raise TypeError("Resource identifier must be of a string type")
+
+
+def _resolve(base, ref, strict, symbols):
+    """ Transform a reference relative to this URI to produce a full target
+    URI.
+
+    :param base:
+    :param ref:
+    :param strict:
+    :param symbols:
+
+    .. seealso::
+        `RFC 3986 § 5.2.2`_
+
+    .. _`RFC 3986 § 5.2.2`: http://tools.ietf.org/html/rfc3986#section-5.2.2
+    """
+    if not strict and ref.scheme == base.scheme:
+        ref_scheme = None
+    else:
+        ref_scheme = ref.scheme
+    if ref_scheme is not None:
+        scheme = ref_scheme
+        authority = ref.authority
+        path = _remove_dot_segments(ref.path, symbols)
+        query = ref.query
+    else:
+        if ref.authority is not None:
+            authority = ref.authority
+            path = _remove_dot_segments(ref.path, symbols)
+            query = ref.query
+        else:
+            if not ref.path:
+                path = base.path
+                if ref.query is not None:
+                    query = ref.query
+                else:
+                    query = base.query
+            else:
+                if ref.path.startswith(symbols.SLASH):
+                    path = _remove_dot_segments(ref.path, symbols)
+                else:
+                    path = _merge_path(base.authority, base.path, ref.path, symbols)
+                    path = _remove_dot_segments(path, symbols)
+                query = ref.query
+            authority = base.authority
+        scheme = base.scheme
+    fragment = ref.fragment
+    return scheme, authority, path, query, fragment
+
+
+URI.resolve = lambda base, ref, strict=True: URI(*_resolve(base, URI.parse(ref), strict, URI_SYMBOLS))
+IRI.resolve = lambda base, ref, strict=True: IRI(*_resolve(base, IRI.parse(ref), strict, IRI_SYMBOLS))
+
+
+def _merge_path(authority, path, relative_path_ref, symbols):
+    """ Implementation of RFC3986, section 5.2.3
+
+    https://datatracker.ietf.org/doc/html/rfc3986#section-5.2.3
+
+    :param authority:
+    :param path:
+    :param relative_path_ref:
+    :return:
+    """
+    if authority is not None and not path:
+        return symbols.SLASH + relative_path_ref
+    else:
+        try:
+            last_slash = path.rindex(symbols.SLASH)
+        except ValueError:
+            return relative_path_ref
+        else:
+            return path[:(last_slash + 1)] + relative_path_ref
+
+
+def _remove_dot_segments(path, symbols):
+    """ Implementation of RFC3986, section 5.2.4
+    """
+    new_path = symbols.EMPTY
+    while path:
+        if path.startswith(symbols.DOT_DOT_SLASH):
+            path = path[3:]
+        elif path.startswith(symbols.DOT_SLASH):
+            path = path[2:]
+        elif path.startswith(symbols.SLASH_DOT_SLASH):
+            path = path[2:]
+        elif path == symbols.SLASH_DOT:
+            path = symbols.SLASH
+        elif path.startswith(symbols.SLASH_DOT_DOT_SLASH):
+            path = path[3:]
+            new_path = new_path.rpartition(symbols.SLASH)[0]
+        elif path == symbols.SLASH_DOT_DOT:
+            path = symbols.SLASH
+            new_path = new_path.rpartition(symbols.SLASH)[0]
+        elif path in (symbols.DOT, symbols.DOT_DOT):
+            path = symbols.EMPTY
+        else:
+            if path.startswith(symbols.SLASH):
+                path = path[1:]
+                new_path += symbols.SLASH
+            seg, slash, path = path.partition(symbols.SLASH)
+            new_path += seg
+            path = slash + path
+    return new_path
+
+
+def _compose(uri, symbols):
+    """ Implementation of RFC3986, section 5.3
+
+    :return:
+    """
+    parts = []
+    if uri.scheme is not None:
+        parts.append(uri.scheme)
+        parts.append(symbols.COLON)
+    if uri.authority is not None:
+        parts.append(symbols.SLASH_SLASH)
+        parts.append(uri.authority)
+    parts.append(uri.path)
+    if uri.query is not None:
+        parts.append(symbols.QUERY)
+        parts.append(uri.query)
+    if uri.fragment is not None:
+        parts.append(symbols.HASH)
+        parts.append(uri.fragment)
+    return parts
+
+
+URI.__bytes__ = lambda self: b"".join(_compose(self, URI_SYMBOLS))
+URI.__str__ = lambda self: b"".join(_compose(self, URI_SYMBOLS)).decode("ascii")
+URI.__repr__ = lambda self: f'<{b"".join(_compose(self, URI_SYMBOLS)).decode("ascii")}>'
+IRI.__bytes__ = lambda self: "".join(_compose(self, IRI_SYMBOLS)).encode("utf-8")
+IRI.__str__ = lambda self: "".join(_compose(self, IRI_SYMBOLS))
+IRI.__repr__ = lambda self: f'«{"".join(_compose(self, IRI_SYMBOLS))}»'
