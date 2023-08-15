@@ -22,81 +22,101 @@ from collections import namedtuple
 VERSION = "0.0.0"
 
 
-URI = namedtuple("URI", ["scheme", "authority", "path", "query", "fragment"])
-URI.UNRESERVED = (b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                  b"abcdefghijklmnopqrstuvwxyz"
-                  b"0123456789-._~")                # RFC 3986 § 2.3.
-
-IRI = namedtuple("IRI", ["scheme", "authority", "path", "query", "fragment"])
-IRI.UNRESERVED = ("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                  "abcdefghijklmnopqrstuvwxyz"
-                  "0123456789-._~")                # RFC 3986 § 2.3.
-
-URI_SYMBOLS = type("URISymbols", (), {
-    "EMPTY": b"",
-    "SLASH": b"/",
-    "DOT_SLASH": b"./",
-    "DOT_DOT_SLASH": b"../",
-    "SLASH_DOT_SLASH": b"/./",
-    "SLASH_DOT_DOT_SLASH": b"/../",
-    "SLASH_DOT_DOT": b"/..",
-    "SLASH_DOT": b"/.",
-    "DOT": b".",
-    "DOT_DOT": b"..",
-    "COLON": b":",
-    "QUERY": b"?",
-    "HASH": b"#",
-    "SLASH_SLASH": b"//",
-})()
-
-IRI_SYMBOLS = type("IRISymbols", (), {
-    "EMPTY": "",
-    "SLASH": "/",
-    "DOT_SLASH": "./",
-    "DOT_DOT_SLASH": "../",
-    "SLASH_DOT_SLASH": "/./",
-    "SLASH_DOT_DOT_SLASH": "/../",
-    "SLASH_DOT_DOT": "/..",
-    "SLASH_DOT": "/.",
-    "DOT": ".",
-    "DOT_DOT": "..",
-    "COLON": ":",
-    "QUERY": "?",
-    "HASH": "#",
-    "SLASH_SLASH": "//",
-})()
+CHARS = [chr(i).encode("iso-8859-1") for i in range(256)]
+PCT_ENCODED_CHARS = [f"%{i:02X}".encode("ascii") for i in range(256)]
+RESERVED_CHARS = b"!#$&'()*+,/:;=?@[]"                  # RFC 3986 § 2.2
+UNRESERVED_CHARS = (b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    b"abcdefghijklmnopqrstuvwxyz"
+                    b"0123456789-._~")                  # RFC 3986 § 2.3
 
 
-def percent_encode(string, safe=b"/"):
-    """ Percent encode a string of data, optionally keeping certain characters
-    unencoded.
+def pct_encode(string, safe=b""):
+    r""" Percent encode a string of data, optionally keeping certain
+    characters unencoded.
 
-    # RFC 3986 § 2.1.
+    This function implements the percent encoding mechanism described in
+    section 2 of RFC 3986. For the corresponding decode function, see
+    `pct_decode`.
+
+    The default input and output types are bytes (or bytearrays). Strings can
+    also be passed, but will be internally encoded using UTF-8 (as described in
+    RFC 3987). If an alternate encoding is required, this should be applied
+    before calling the function. If a string is passed as input, a string will
+    also be returned as output.
+
+    Safe characters can be passed into the function to prevent these from being
+    encoded. These must be drawn from the set of reserved characters defined in
+    section 2.2 of RFC 3986. Passing other characters will result in a
+    ValueError. Unlike the standard library function `quote`, no characters are
+    denoted as safe by default. For a compatible drop-in function, see the
+    `xri.compat` module.
+
+    As described by RFC 3986, the set of "unreserved" characters are always safe
+    and will never be encoded. These are:
+
+        A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+        a b c d e f g h i j k l m n o p q r s t u v w x y z
+        0 1 2 3 4 5 6 7 8 9 - . _ ~
+
+    The "reserved" characters are used as delimiters in many URI schemes, and will
+    not be encoded unless explicitly marked as safe. These are:
+
+        ! # $ & ' ( ) * + , / : ; = ? @ [ ]
+
+    Other characters within the ASCII range will always be encoded:
+
+        «00»..«1F» «SP» " % < > \ ^ ` { | } «DEL»
+
+    Extended single byte characters («80»..«FF») fall outside of the ASCII range
+    and are therefore always encoded as they do not have a default representation.
+    In many cases, these will constitute part of a multi-byte UTF-8 sequence.
+
+    :param string:
+        The str, bytes or bytearray value to be encoded. If this is a Unicode
+        string, then UTF-8 encoding is applied before processing.
+    :param safe:
+        Characters which should not be encoded. These can be selected from the
+        reserved set of characters as defined in RFC3986§2.2 and passed as
+        either strings or bytes. Any characters from the reserved set that are
+        not denoted here as "safe" will be encoded. Any characters added to
+        the safe list which are not in the RFC reserved set will trigger a
+        ValueError.
+    :return:
+        The return value will either be a string or a bytes instance depending
+        on the input value supplied.
 
     """
-    if isinstance(string, str):
-        string = string.encode("utf-8")
-    assert isinstance(string, (bytes, bytearray))
-    if isinstance(safe, str):
-        safe = safe.encode("ascii", "ignore")
-    assert isinstance(safe, (bytes, bytearray))
-    safe += URI.UNRESERVED
-    return "".join(chr(ch) if ch in safe else f"%{ch:02X}"
-                   for ch in string)
+    if isinstance(string, (bytes, bytearray)):
+        if isinstance(safe, str):
+            safe = safe.encode("utf-8")
+        assert isinstance(safe, (bytes, bytearray))
+        bad_safe_chars = bytes(ch for ch in safe if ch not in RESERVED_CHARS)
+        if bad_safe_chars:
+            raise ValueError(f"Safe characters must be in the set \"!#$&'()*+,/:;=?@[]\" "
+                             f"(found {bad_safe_chars!r})")
+        safe += UNRESERVED_CHARS
+        return b"".join(CHARS[ch] if ch in safe else PCT_ENCODED_CHARS[ch]
+                        for ch in string)
+    elif isinstance(string, str):
+        return pct_encode(string.encode("utf-8"), safe=safe).decode("utf-8")
+    elif string is None:
+        return None
+    else:
+        raise TypeError(f"Unsupported input type {type(string)}")
 
 
-def percent_decode(data):
+def pct_decode(data):
     """ Percent decode a string of data.
 
     Examples:
 
-        >>> percent_decode("Laguna%20Beach")
+        >>> pct_decode("Laguna%20Beach")
         'Laguna Beach'
 
-        >>> percent_decode("20%25%20of%20%24100%20%3D%20%2420")
+        >>> pct_decode("20%25%20of%20%24100%20%3D%20%2420")
         '20% of $100 = $20'
 
-        >>> percent_decode("nothing-to-decode")
+        >>> pct_decode("nothing-to-decode")
         'nothing-to-decode'
 
     """
@@ -121,6 +141,45 @@ def percent_decode(data):
             else:
                 out.append(chr(char_code))
     return "".join(out)
+
+
+URI = namedtuple("URI", ["scheme", "authority", "path", "query", "fragment"])
+IRI = namedtuple("IRI", ["scheme", "authority", "path", "query", "fragment"])
+
+
+_URI_SYMBOLS = type("URISymbols", (), {
+    "EMPTY": b"",
+    "SLASH": b"/",
+    "DOT_SLASH": b"./",
+    "DOT_DOT_SLASH": b"../",
+    "SLASH_DOT_SLASH": b"/./",
+    "SLASH_DOT_DOT_SLASH": b"/../",
+    "SLASH_DOT_DOT": b"/..",
+    "SLASH_DOT": b"/.",
+    "DOT": b".",
+    "DOT_DOT": b"..",
+    "COLON": b":",
+    "QUERY": b"?",
+    "HASH": b"#",
+    "SLASH_SLASH": b"//",
+})()
+
+_IRI_SYMBOLS = type("IRISymbols", (), {
+    "EMPTY": "",
+    "SLASH": "/",
+    "DOT_SLASH": "./",
+    "DOT_DOT_SLASH": "../",
+    "SLASH_DOT_SLASH": "/./",
+    "SLASH_DOT_DOT_SLASH": "/../",
+    "SLASH_DOT_DOT": "/..",
+    "SLASH_DOT": "/.",
+    "DOT": ".",
+    "DOT_DOT": "..",
+    "COLON": ":",
+    "QUERY": "?",
+    "HASH": "#",
+    "SLASH_SLASH": "//",
+})()
 
 
 def _parse(string, symbols):
@@ -164,9 +223,9 @@ def xri(value):
     if isinstance(value, (URI, IRI)):
         return value
     elif isinstance(value, str):
-        return IRI(*_parse(value, IRI_SYMBOLS))
+        return IRI(*_parse(value, _IRI_SYMBOLS))
     elif isinstance(value, (bytes, bytearray)):
-        return URI(*_parse(value, URI_SYMBOLS))
+        return URI(*_parse(value, _URI_SYMBOLS))
     elif value is None:
         return None
     else:
@@ -221,8 +280,8 @@ def _resolve(base, ref, strict, symbols):
     return scheme, authority, path, query, fragment
 
 
-URI.resolve = lambda base, ref, strict=True: URI(*_resolve(base, xri(ref), strict, URI_SYMBOLS))
-IRI.resolve = lambda base, ref, strict=True: IRI(*_resolve(base, xri(ref), strict, IRI_SYMBOLS))
+URI.resolve = lambda base, ref, strict=True: URI(*_resolve(base, xri(ref), strict, _URI_SYMBOLS))
+IRI.resolve = lambda base, ref, strict=True: IRI(*_resolve(base, xri(ref), strict, _IRI_SYMBOLS))
 
 
 def _merge_path(authority, path, relative_path_ref, symbols):
@@ -299,9 +358,9 @@ def _compose(uri, symbols):
     return parts
 
 
-URI.__bytes__ = lambda self: b"".join(_compose(self, URI_SYMBOLS))
-URI.__str__ = lambda self: b"".join(_compose(self, URI_SYMBOLS)).decode("ascii")
-URI.__repr__ = lambda self: f'<{b"".join(_compose(self, URI_SYMBOLS)).decode("ascii")}>'
-IRI.__bytes__ = lambda self: "".join(_compose(self, IRI_SYMBOLS)).encode("utf-8")
-IRI.__str__ = lambda self: "".join(_compose(self, IRI_SYMBOLS))
-IRI.__repr__ = lambda self: f'«{"".join(_compose(self, IRI_SYMBOLS))}»'
+URI.__bytes__ = lambda self: b"".join(_compose(self, _URI_SYMBOLS))
+URI.__str__ = lambda self: b"".join(_compose(self, _URI_SYMBOLS)).decode("ascii")
+URI.__repr__ = lambda self: f'<{b"".join(_compose(self, _URI_SYMBOLS)).decode("ascii")}>'
+IRI.__bytes__ = lambda self: "".join(_compose(self, _IRI_SYMBOLS)).encode("utf-8")
+IRI.__str__ = lambda self: "".join(_compose(self, _IRI_SYMBOLS))
+IRI.__repr__ = lambda self: f'«{"".join(_compose(self, _IRI_SYMBOLS))}»'
