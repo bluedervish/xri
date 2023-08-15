@@ -89,7 +89,8 @@ def pct_encode(string, safe=b""):
     if isinstance(string, (bytes, bytearray)):
         if isinstance(safe, str):
             safe = safe.encode("utf-8")
-        assert isinstance(safe, (bytes, bytearray))
+        if not isinstance(safe, (bytes, bytearray)):
+            raise TypeError(f"Unsupported type for safe characters {type(safe)}")
         bad_safe_chars = bytes(ch for ch in safe if ch not in RESERVED_CHARS)
         if bad_safe_chars:
             raise ValueError(f"Safe characters must be in the set \"!#$&'()*+,/:;=?@[]\" "
