@@ -19,7 +19,7 @@
 from collections import namedtuple
 
 
-VERSION = 0.1
+VERSION = "0.0.0"
 
 
 URI = namedtuple("URI", ["scheme", "authority", "path", "query", "fragment"])
@@ -149,10 +149,6 @@ def _parse(string, symbols):
     return scheme, authority, path, query, fragment
 
 
-URI.parse = classmethod(lambda cls, string: cls(*_parse(string, URI_SYMBOLS)))
-IRI.parse = classmethod(lambda cls, string: cls(*_parse(string, IRI_SYMBOLS)))
-
-
 def xri(value):
     """ Create a URI or IRI based on a given `value`.
 
@@ -168,39 +164,9 @@ def xri(value):
     if isinstance(value, (URI, IRI)):
         return value
     elif isinstance(value, str):
-        return IRI.parse(value)
+        return IRI(*_parse(value, IRI_SYMBOLS))
     elif isinstance(value, (bytes, bytearray)):
-        return URI.parse(value)
-    elif value is None:
-        return None
-    else:
-        raise TypeError("Resource identifier must be of a string type")
-
-
-def uri(value):
-    if isinstance(value, URI):
-        return value
-    elif isinstance(value, IRI):
-        return URI.parse(bytes(value))
-    elif isinstance(value, str):
-        return URI.parse(value.encode("utf-8"))
-    elif isinstance(value, (bytes, bytearray)):
-        return URI.parse(value)
-    elif value is None:
-        return None
-    else:
-        raise TypeError("Resource identifier must be of a string type")
-
-
-def iri(value):
-    if isinstance(value, IRI):
-        return value
-    elif isinstance(value, URI):
-        return IRI.parse(str(value))
-    elif isinstance(value, str):
-        return IRI.parse(value)
-    elif isinstance(value, (bytes, bytearray)):
-        return IRI.parse(value.decode("utf-8"))
+        return URI(*_parse(value, URI_SYMBOLS))
     elif value is None:
         return None
     else:
@@ -255,8 +221,8 @@ def _resolve(base, ref, strict, symbols):
     return scheme, authority, path, query, fragment
 
 
-URI.resolve = lambda base, ref, strict=True: URI(*_resolve(base, URI.parse(ref), strict, URI_SYMBOLS))
-IRI.resolve = lambda base, ref, strict=True: IRI(*_resolve(base, IRI.parse(ref), strict, IRI_SYMBOLS))
+URI.resolve = lambda base, ref, strict=True: URI(*_resolve(base, xri(ref), strict, URI_SYMBOLS))
+IRI.resolve = lambda base, ref, strict=True: IRI(*_resolve(base, xri(ref), strict, IRI_SYMBOLS))
 
 
 def _merge_path(authority, path, relative_path_ref, symbols):

@@ -18,7 +18,7 @@
 
 from unittest import TestCase
 
-from xri import URI, IRI
+from xri import xri, URI, IRI
 
 
 class ParsingTest(TestCase):
@@ -69,9 +69,44 @@ class ParsingTest(TestCase):
             string = string.encode("ascii")
             parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
-                self.assertEqual(URI.parse(string), parts)
+                self.assertEqual(xri(string), parts)
 
     def test_iri_cases(self):
         for string, parts in self.cases.items():
             with self.subTest(string):
-                self.assertEqual(IRI.parse(string), parts)
+                self.assertEqual(xri(string), parts)
+
+
+class XRICastingTest(TestCase):
+
+    def test_str_to_iri(self):
+        iri = xri("https://example.com/a")
+        self.assertIsInstance(iri, IRI)
+
+    def test_bytes_to_uri(self):
+        uri = xri(b"https://example.com/a")
+        self.assertIsInstance(uri, URI)
+
+    def test_bytearray_to_uri(self):
+        uri = xri(bytearray(b"https://example.com/a"))
+        self.assertIsInstance(uri, URI)
+
+    def test_none_to_none(self):
+        none = xri(None)
+        self.assertIsNone(none)
+
+    def test_iri_to_iri(self):
+        iri0 = xri("https://example.com/a")
+        self.assertIsInstance(iri0, IRI)
+        iri = xri(iri0)
+        self.assertIsInstance(iri, IRI)
+
+    def test_uri_to_uri(self):
+        uri0 = xri(b"https://example.com/a")
+        self.assertIsInstance(uri0, URI)
+        uri = xri(uri0)
+        self.assertIsInstance(uri, URI)
+
+    def test_unknown_type(self):
+        with self.assertRaises(TypeError):
+            _ = xri(object())
