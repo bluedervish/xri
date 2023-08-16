@@ -22,8 +22,9 @@ from collections import namedtuple
 VERSION = "0.0.0"
 
 
-CHARS = [chr(i).encode("iso-8859-1") for i in range(256)]
-PCT_ENCODED_CHARS = [f"%{i:02X}".encode("ascii") for i in range(256)]
+_CHARS = [chr(i).encode("iso-8859-1") for i in range(256)]
+_PCT_ENCODED_CHARS = [f"%{i:02X}".encode("ascii") for i in range(256)]
+
 RESERVED_CHARS = b"!#$&'()*+,/:;=?@[]"                  # RFC 3986 § 2.2
 UNRESERVED_CHARS = (b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     b"abcdefghijklmnopqrstuvwxyz"
@@ -96,7 +97,7 @@ def pct_encode(string, safe=b""):
             raise ValueError(f"Safe characters must be in the set \"!#$&'()*+,/:;=?@[]\" "
                              f"(found {bad_safe_chars!r})")
         safe += UNRESERVED_CHARS
-        return b"".join(CHARS[ch] if ch in safe else PCT_ENCODED_CHARS[ch]
+        return b"".join(_CHARS[ch] if ch in safe else _PCT_ENCODED_CHARS[ch]
                         for ch in string)
     elif isinstance(string, str):
         return pct_encode(string.encode("utf-8"), safe=safe).decode("utf-8")
@@ -106,7 +107,7 @@ def pct_encode(string, safe=b""):
         raise TypeError(f"Unsupported input type {type(string)}")
 
 
-def pct_decode(data):
+def pct_decode(string):
     """ Percent decode a string of data.
 
     Examples:
@@ -123,16 +124,16 @@ def pct_decode(data):
     """
     out = []
     p = 0
-    size = len(data)
+    size = len(string)
     while p < size:
-        q = data.find("%", p)
+        q = string.find("%", p)
         if q == -1:
-            out.append(data[p:])
+            out.append(string[p:])
             p = size + 1
         else:
-            out.append(data[p:q])
+            out.append(string[p:q])
             p = q + 3
-            char_hex = data[(q + 1):p]
+            char_hex = string[(q + 1):p]
             if len(char_hex) < 2:
                 raise ValueError(f"Illegal percent-encoded octet '%{char_hex}' at index {q} (premature end of string)")
             try:
