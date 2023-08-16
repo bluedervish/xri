@@ -184,6 +184,8 @@ _IRI_SYMBOLS = type("IRISymbols", (), {
 
 
 def _parse(string, symbols):
+    # TODO: strict
+    #   scheme to lower case, check pattern: (a-z)(a-z|0-9|+|.|-)*
     scheme, colon, scheme_specific_part = string.partition(symbols.COLON)
     if not colon:
         scheme, scheme_specific_part = None, scheme
@@ -231,6 +233,10 @@ def xri(value):
         return None
     else:
         raise TypeError("Resource identifier must be of a string type")
+
+
+def validate_scheme(string):
+    raise NotImplementedError  # TODO
 
 
 def _resolve(base, ref, strict, symbols):
