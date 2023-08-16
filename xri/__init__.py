@@ -110,39 +110,38 @@ def pct_encode(string, safe=b""):
 def pct_decode(string):
     """ Percent decode a string of data.
 
-    Examples:
-
-        >>> pct_decode("Laguna%20Beach")
-        'Laguna Beach'
-
-        >>> pct_decode("20%25%20of%20%24100%20%3D%20%2420")
-        '20% of $100 = $20'
-
-        >>> pct_decode("nothing-to-decode")
-        'nothing-to-decode'
+    TODO: docs
 
     """
-    out = []
-    p = 0
-    size = len(string)
-    while p < size:
-        q = string.find("%", p)
-        if q == -1:
-            out.append(string[p:])
-            p = size + 1
-        else:
-            out.append(string[p:q])
-            p = q + 3
-            char_hex = string[(q + 1):p]
-            if len(char_hex) < 2:
-                raise ValueError(f"Illegal percent-encoded octet '%{char_hex}' at index {q} (premature end of string)")
-            try:
-                char_code = int(char_hex, 16)
-            except ValueError:
-                raise ValueError(f"Illegal percent-encoded octet '%{char_hex}' at index {q}")
+    if isinstance(string, (bytes, bytearray)):
+        out = []
+        p = 0
+        size = len(string)
+        while p < size:
+            q = string.find(b"%", p)
+            if q == -1:
+                out.append(string[p:])
+                p = size + 1
             else:
-                out.append(chr(char_code))
-    return "".join(out)
+                out.append(string[p:q])
+                p = q + 3
+                char_hex = string[(q + 1):p]
+                if len(char_hex) < 2:
+                    raise ValueError(f"Illegal percent-encoded octet '%{char_hex}' at index {q} "
+                                     f"(premature end of string)")
+                try:
+                    char_code = int(char_hex, 16)
+                except ValueError:
+                    raise ValueError(f"Illegal percent-encoded octet '%{char_hex}' at index {q}")
+                else:
+                    out.append(_CHARS[char_code])
+        return b"".join(out)
+    elif isinstance(string, str):
+        return pct_decode(string.encode("utf-8")).decode("utf-8")
+    elif string is None:
+        return None
+    else:
+        raise TypeError(f"Unsupported input type {type(string)}")
 
 
 URI = namedtuple("URI", ["scheme", "authority", "path", "query", "fragment"])
