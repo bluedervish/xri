@@ -18,7 +18,7 @@
 
 from unittest import TestCase
 
-from xri import xri, URI, IRI
+from xri import XRI
 
 
 class ParsingTest(TestCase):
@@ -62,6 +62,7 @@ class ParsingTest(TestCase):
         "http://example.com/#bookmark": ("http", "example.com", "/", None, "bookmark"),
         "http://example.com/abc?def=ghi&jkl=mno": ("http", "example.com", "/abc", "def=ghi&jkl=mno", None),
         "http://example.com/abc?def=ghi&jkl=mno#pqr": ("http", "example.com", "/abc", "def=ghi&jkl=mno", "pqr"),
+        "https://example.com/abc%20def": ("https", "example.com", "/abc def", None, None),
     }
 
     def test_uri_cases(self):
@@ -69,44 +70,49 @@ class ParsingTest(TestCase):
             string = string.encode("ascii")
             parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
-                self.assertEqual(xri(string), parts)
+                self.assertEqual(XRI(string), parts)
 
     def test_iri_cases(self):
         for string, parts in self.cases.items():
             with self.subTest(string):
-                self.assertEqual(xri(string), parts)
+                self.assertEqual(XRI(string), parts)
 
 
 class XRICastingTest(TestCase):
 
     def test_str_to_iri(self):
-        iri = xri("https://example.com/a")
-        self.assertIsInstance(iri, IRI)
+        iri = XRI("https://example.com/a")
+        self.assertIsInstance(iri, XRI)
+        self.assertIsInstance(iri.path, str)
 
     def test_bytes_to_uri(self):
-        uri = xri(b"https://example.com/a")
-        self.assertIsInstance(uri, URI)
+        uri = XRI(b"https://example.com/a")
+        self.assertIsInstance(uri, XRI)
+        self.assertIsInstance(uri.path, bytes)
 
     def test_bytearray_to_uri(self):
-        uri = xri(bytearray(b"https://example.com/a"))
-        self.assertIsInstance(uri, URI)
+        uri = XRI(bytearray(b"https://example.com/a"))
+        self.assertIsInstance(uri, XRI)
+        self.assertIsInstance(uri.path, bytes)
 
     def test_none_to_none(self):
-        none = xri(None)
+        none = XRI(None)
         self.assertIsNone(none)
 
     def test_iri_to_iri(self):
-        iri0 = xri("https://example.com/a")
-        self.assertIsInstance(iri0, IRI)
-        iri = xri(iri0)
-        self.assertIsInstance(iri, IRI)
+        iri0 = XRI("https://example.com/a")
+        self.assertIsInstance(iri0, XRI)
+        iri = XRI(iri0)
+        self.assertIsInstance(iri, XRI)
+        self.assertIsInstance(iri.path, str)
 
     def test_uri_to_uri(self):
-        uri0 = xri(b"https://example.com/a")
-        self.assertIsInstance(uri0, URI)
-        uri = xri(uri0)
-        self.assertIsInstance(uri, URI)
+        uri0 = XRI(b"https://example.com/a")
+        self.assertIsInstance(uri0, XRI)
+        uri = XRI(uri0)
+        self.assertIsInstance(uri, XRI)
+        self.assertIsInstance(uri.path, bytes)
 
     def test_unknown_type(self):
         with self.assertRaises(TypeError):
-            _ = xri(object())
+            _ = XRI(object())
