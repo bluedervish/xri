@@ -70,12 +70,22 @@ class ParsingTest(TestCase):
             string = string.encode("ascii")
             parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
-                self.assertEqual(XRI(string), parts)
+                xri = XRI(string)
+                self.assertEqual(xri.scheme, parts[0])
+                self.assertEqual(xri.authority, parts[1])
+                self.assertEqual(xri.path, parts[2])
+                self.assertEqual(xri.query, parts[3])
+                self.assertEqual(xri.fragment, parts[4])
 
     def test_iri_cases(self):
         for string, parts in self.cases.items():
             with self.subTest(string):
-                self.assertEqual(XRI(string), parts)
+                xri = XRI(string)
+                self.assertEqual(xri.scheme, parts[0])
+                self.assertEqual(xri.authority, parts[1])
+                self.assertEqual(xri.path, parts[2])
+                self.assertEqual(xri.query, parts[3])
+                self.assertEqual(xri.fragment, parts[4])
 
 
 class XRICastingTest(TestCase):

@@ -16,7 +16,7 @@
 # limitations under the License.
 
 
-from collections import namedtuple
+from typing import Optional, List
 
 
 VERSION = "1.0.0a1"
@@ -203,7 +203,7 @@ class XRI:
         elif isinstance(string, (bytes, bytearray)):
             symbols = _BYTE_SYMBOLS
         else:
-            raise TypeError("XRI value must be of a string type")
+            raise TypeError(f"XRI value must be of a string type ({type(string)} found)")
 
         scheme, authority, path, query, fragment = self._parse(string, symbols)
 
@@ -214,9 +214,28 @@ class XRI:
         self.query = query
         self.fragment = fragment
 
+    def __repr__(self):
+        parts = []
+        if self.scheme is not None:
+            parts.append(f"scheme={self.scheme!r}")
+        if self.authority is not None:
+            parts.append(f"authority={self.authority!r}")
+        parts.append(f"path={self.path!r}")
+        if self.query is not None:
+            parts.append(f"query={self.query!r}")
+        if self.fragment is not None:
+            parts.append(f"fragment={self.fragment!r}")
+        return f"<{self.__class__.__name__} {' '.join(parts)}>"
+
     @classmethod
-    def _parse(cls, string, symbols):
+    def _parse(cls, string: bytes, symbols) -> \
+            (Optional[bytes], Optional[bytes], bytes, Optional[bytes], Optional[bytes]):
         """ Parse the input string into a 5-tuple.
+
+        Percent decoding is carried out here, as opposed to when setting the individual
+        properties. Only when combined as a full URI/IRI is percent encoding useful and
+        therefore relevant. If we set xri.path = "abc%20def" for example, we literally
+        mean "abc%20def" and not "abc def".
         """
         scheme, colon, scheme_specific_part = string.partition(symbols.COLON)
         if not colon:
@@ -240,11 +259,23 @@ class XRI:
         else:
             authority = None
             path = hierarchical_part
-        return scheme, authority, path, query, fragment
+        return tuple(map(cls.pct_decode, (scheme, authority, path, query, fragment)))
 
     @classmethod
-    def _scheme_to_bytes(cls, string):
+    def _scheme_to_bytes(cls, string: bytes) -> bytes:
         """ Validate and normalise a scheme name.
+
+        Schemes can only consist of ASCII characters, even for IRIs.
+        Specifically, the subset of allowed characters is:
+
+            A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+            a b c d e f g h i j k l m n o p q r s t u v w x y z
+            0 1 2 3 4 5 6 7 8 9 + - .
+
+        Furthermore, only letters are permitted at the start, and
+        schemes cannot be empty.
+
+        TODO: work with registered schemes at IANA?
 
         .. seealso::
             `RFC 3986 § 3.1`_
@@ -267,30 +298,33 @@ class XRI:
         return bytes(byte_string)
 
     @classmethod
-    def _authority_to_bytes(cls, string):
+    def _authority_to_bytes(cls, string: bytes) -> bytes:
         # TODO
         return bytes(string)
 
     @classmethod
-    def _path_to_bytes(cls, string):
+    def _path_to_bytes(cls, string: bytes) -> bytes:
+        # Note: percent decoding is not carried out here, as it is only relevant
+        # when considering the URI/IRI as a whole.
         # TODO
         return bytes(string)
 
     @classmethod
-    def _query_to_bytes(cls, string):
+    def _query_to_bytes(cls, string: bytes) -> bytes:
         # TODO
         return bytes(string)
 
     @classmethod
-    def _fragment_to_bytes(cls, string):
+    def _fragment_to_bytes(cls, string: bytes) -> bytes:
         # TODO
         return bytes(string)
 
-    def _compose(self, symbols):
+    def _compose(self, symbols) -> List[bytes]:
         """ Implementation of RFC3986, section 5.3
 
         :return:
         """
+        # TODO: percent encoding
         parts = []
         if self.scheme is not None:
             parts.append(self.scheme)
@@ -306,6 +340,9 @@ class XRI:
             parts.append(symbols.HASH)
             parts.append(self.fragment)
         return parts
+
+    def resolve(self, ref, strict=True):
+        raise NotImplementedError
 
 
 class URI(XRI):
@@ -328,9 +365,6 @@ class URI(XRI):
 
     def __bytes__(self):
         return b"".join(self._compose(_BYTE_SYMBOLS))
-
-    def __repr__(self):
-        return f'<{b"".join(self._compose(_BYTE_SYMBOLS)).decode("ascii")}>'
 
     def __str__(self):
         return b"".join(self._compose(_BYTE_SYMBOLS)).decode("ascii")
@@ -369,11 +403,9 @@ class URI(XRI):
 
     @authority.setter
     def authority(self, value):
-        # TODO
+        # TODO (authority can be empty)
         if value is None:
             self._authority = None
-        elif len(value) == 0:
-            raise ValueError("Authority cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
             self._authority = self._authority_to_bytes(value)
         elif isinstance(value, str):
@@ -449,6 +481,9 @@ class URI(XRI):
     def fragment(self):
         self._fragment = None
 
+    def resolve(self, ref, strict=True):
+        raise NotImplementedError
+
 
 class IRI(XRI):
 
@@ -483,9 +518,6 @@ class IRI(XRI):
 
     def __bytes__(self):
         return "".join(self._compose(_STRING_SYMBOLS)).encode("utf-8")
-
-    def __repr__(self):
-        return f'«{"".join(self._compose(_STRING_SYMBOLS))}»'
 
     def __str__(self):
         return "".join(self._compose(_STRING_SYMBOLS))
@@ -524,11 +556,9 @@ class IRI(XRI):
 
     @authority.setter
     def authority(self, value):
-        # TODO
+        # TODO (authority can be empty)
         if value is None:
             self._authority = None
-        elif len(value) == 0:
-            raise ValueError("Authority cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
             self._authority = self._authority_to_bytes(value).decode("utf-8")
         elif isinstance(value, str):
@@ -603,8 +633,11 @@ class IRI(XRI):
     def fragment(self):
         self._fragment = None
 
+    def resolve(self, ref, strict=True):
+        raise NotImplementedError
 
-def _resolve(base, ref, strict, symbols):
+
+def _resolve(base: XRI, ref: XRI, strict: bool, symbols):
     """ Transform a reference relative to this URI to produce a full target
     URI.
 
