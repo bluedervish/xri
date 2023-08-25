@@ -58,6 +58,12 @@ _STRING_SYMBOLS = type("StringSymbols", (), _SYMBOLS)()
 
 class XRI:
 
+    _scheme = None
+    _authority = None
+    _path = b""
+    _query = None
+    _fragment = None
+
     @classmethod
     def is_unreserved(cls, code):
         raise NotImplementedError
@@ -199,6 +205,19 @@ class XRI:
         else:
             raise TypeError("XRI value must be of a string type")
 
+        scheme, authority, path, query, fragment = self._parse(string, symbols)
+
+        # TODO: strict mode (maybe)
+        self.scheme = scheme
+        self.authority = authority
+        self.path = path
+        self.query = query
+        self.fragment = fragment
+
+    @classmethod
+    def _parse(cls, string, symbols):
+        """ Parse the input string into a 5-tuple.
+        """
         scheme, colon, scheme_specific_part = string.partition(symbols.COLON)
         if not colon:
             scheme, scheme_specific_part = None, scheme
@@ -221,18 +240,10 @@ class XRI:
         else:
             authority = None
             path = hierarchical_part
-
-        self._symbols = symbols
-
-        # TODO: strict mode (maybe)
-        self.scheme = scheme
-        self._authority = authority
-        self._path = path
-        self._query = query
-        self._fragment = fragment
+        return scheme, authority, path, query, fragment
 
     @classmethod
-    def _set_scheme(cls, string):
+    def _scheme_to_bytes(cls, string):
         """ Validate and normalise a scheme name.
 
         .. seealso::
@@ -255,6 +266,47 @@ class XRI:
                 raise ValueError(f"Invalid character {chr(b)!r} at position {i} in scheme {string!r}")
         return bytes(byte_string)
 
+    @classmethod
+    def _authority_to_bytes(cls, string):
+        # TODO
+        return bytes(string)
+
+    @classmethod
+    def _path_to_bytes(cls, string):
+        # TODO
+        return bytes(string)
+
+    @classmethod
+    def _query_to_bytes(cls, string):
+        # TODO
+        return bytes(string)
+
+    @classmethod
+    def _fragment_to_bytes(cls, string):
+        # TODO
+        return bytes(string)
+
+    def _compose(self, symbols):
+        """ Implementation of RFC3986, section 5.3
+
+        :return:
+        """
+        parts = []
+        if self.scheme is not None:
+            parts.append(self.scheme)
+            parts.append(symbols.COLON)
+        if self.authority is not None:
+            parts.append(symbols.SLASH_SLASH)
+            parts.append(self.authority)
+        parts.append(self.path)
+        if self.query is not None:
+            parts.append(symbols.QUERY)
+            parts.append(self.query)
+        if self.fragment is not None:
+            parts.append(symbols.HASH)
+            parts.append(self.fragment)
+        return parts
+
 
 class URI(XRI):
 
@@ -275,14 +327,20 @@ class URI(XRI):
         return False
 
     def __bytes__(self):
-        return b"".join(_compose(self, _BYTE_SYMBOLS))
+        return b"".join(self._compose(_BYTE_SYMBOLS))
+
+    def __repr__(self):
+        return f'<{b"".join(self._compose(_BYTE_SYMBOLS)).decode("ascii")}>'
+
+    def __str__(self):
+        return b"".join(self._compose(_BYTE_SYMBOLS)).decode("ascii")
 
     @property
     def scheme(self):
         return self._scheme
 
     @scheme.setter
-    def scheme(self, string):
+    def scheme(self, value):
         """ Validate and normalise a scheme name.
 
         .. seealso::
@@ -290,14 +348,14 @@ class URI(XRI):
 
         .. _`RFC 3986 § 3.1`: http://tools.ietf.org/html/rfc3986#section-3.1
         """
-        if string is None:
+        if value is None:
             self._scheme = None
-        elif len(string) == 0:
+        elif len(value) == 0:
             raise ValueError("Scheme cannot be an empty string (but could be None)")
-        if isinstance(string, (bytes, bytearray)):
-            self._scheme = self._set_scheme(string)
-        elif isinstance(string, str):
-            self._scheme = self._set_scheme(string.encode("utf-8"))
+        elif isinstance(value, (bytes, bytearray)):
+            self._scheme = self._scheme_to_bytes(value)
+        elif isinstance(value, str):
+            self._scheme = self._scheme_to_bytes(value.encode("utf-8"))
         else:
             raise TypeError("Scheme must be of a string type")
 
@@ -310,8 +368,18 @@ class URI(XRI):
         return self._authority
 
     @authority.setter
-    def authority(self, string):
-        raise NotImplementedError  # TODO
+    def authority(self, value):
+        # TODO
+        if value is None:
+            self._authority = None
+        elif len(value) == 0:
+            raise ValueError("Authority cannot be an empty string (but could be None)")
+        elif isinstance(value, (bytes, bytearray)):
+            self._authority = self._authority_to_bytes(value)
+        elif isinstance(value, str):
+            self._authority = self._authority_to_bytes(value.encode("utf-8"))
+        else:
+            raise TypeError("Authority must be of a string type")
 
     @authority.deleter
     def authority(self):
@@ -322,8 +390,16 @@ class URI(XRI):
         return self._path
 
     @path.setter
-    def path(self, string):
-        raise NotImplementedError  # TODO
+    def path(self, value):
+        # TODO
+        if value is None:
+            raise ValueError("Path cannot be None (but could be an empty string)")
+        elif isinstance(value, (bytes, bytearray)):
+            self._path = self._path_to_bytes(value)
+        elif isinstance(value, str):
+            self._path = self._path_to_bytes(value.encode("utf-8"))
+        else:
+            raise TypeError("Path must be of a string type")
 
     @path.deleter
     def path(self):
@@ -334,8 +410,18 @@ class URI(XRI):
         return self._query
 
     @query.setter
-    def query(self, string):
-        raise NotImplementedError  # TODO
+    def query(self, value):
+        # TODO
+        if value is None:
+            self._query = None
+        elif len(value) == 0:
+            raise ValueError("Query cannot be an empty string (but could be None)")
+        elif isinstance(value, (bytes, bytearray)):
+            self._query = self._query_to_bytes(value)
+        elif isinstance(value, str):
+            self._query = self._query_to_bytes(value.encode("utf-8"))
+        else:
+            raise TypeError("Query must be of a string type")
 
     @query.deleter
     def query(self):
@@ -346,8 +432,18 @@ class URI(XRI):
         return self._fragment
 
     @fragment.setter
-    def fragment(self, string):
-        raise NotImplementedError  # TODO
+    def fragment(self, value):
+        # TODO
+        if value is None:
+            self._fragment = None
+        elif len(value) == 0:
+            raise ValueError("Fragment cannot be an empty string (but could be None)")
+        elif isinstance(value, (bytes, bytearray)):
+            self._fragment = self._fragment_to_bytes(value)
+        elif isinstance(value, str):
+            self._fragment = self._fragment_to_bytes(value.encode("utf-8"))
+        else:
+            raise TypeError("Fragment must be of a string type")
 
     @fragment.deleter
     def fragment(self):
@@ -386,14 +482,20 @@ class IRI(XRI):
                 0x100000 <= code <= 0x10FFFD)
 
     def __bytes__(self):
-        return "".join(_compose(self, _STRING_SYMBOLS)).encode("utf-8")
+        return "".join(self._compose(_STRING_SYMBOLS)).encode("utf-8")
+
+    def __repr__(self):
+        return f'«{"".join(self._compose(_STRING_SYMBOLS))}»'
+
+    def __str__(self):
+        return "".join(self._compose(_STRING_SYMBOLS))
 
     @property
     def scheme(self):
         return self._scheme
 
     @scheme.setter
-    def scheme(self, string):
+    def scheme(self, value):
         """ Validate and normalise a scheme name.
 
         .. seealso::
@@ -401,14 +503,14 @@ class IRI(XRI):
 
         .. _`RFC 3986 § 3.1`: http://tools.ietf.org/html/rfc3986#section-3.1
         """
-        if string is None:
+        if value is None:
             self._scheme = None
-        elif len(string) == 0:
+        elif len(value) == 0:
             raise ValueError("Scheme cannot be an empty string (but could be None)")
-        if isinstance(string, (bytes, bytearray)):
-            self._scheme = self._set_scheme(string).decode("utf-8")
-        elif isinstance(string, str):
-            self._scheme = self._set_scheme(string.encode("utf-8")).decode("utf-8")
+        elif isinstance(value, (bytes, bytearray)):
+            self._scheme = self._scheme_to_bytes(value).decode("utf-8")
+        elif isinstance(value, str):
+            self._scheme = self._scheme_to_bytes(value.encode("utf-8")).decode("utf-8")
         else:
             raise TypeError("Scheme must be of a string type")
 
@@ -421,8 +523,18 @@ class IRI(XRI):
         return self._authority
 
     @authority.setter
-    def authority(self, string):
-        raise NotImplementedError  # TODO
+    def authority(self, value):
+        # TODO
+        if value is None:
+            self._authority = None
+        elif len(value) == 0:
+            raise ValueError("Authority cannot be an empty string (but could be None)")
+        elif isinstance(value, (bytes, bytearray)):
+            self._authority = self._authority_to_bytes(value).decode("utf-8")
+        elif isinstance(value, str):
+            self._authority = self._authority_to_bytes(value.encode("utf-8")).decode("utf-8")
+        else:
+            raise TypeError("Authority must be of a string type")
 
     @authority.deleter
     def authority(self):
@@ -433,8 +545,15 @@ class IRI(XRI):
         return self._path
 
     @path.setter
-    def path(self, string):
-        raise NotImplementedError  # TODO
+    def path(self, value):
+        if value is None:
+            raise ValueError("Path cannot be None (but could be an empty string)")
+        elif isinstance(value, (bytes, bytearray)):
+            self._path = self._path_to_bytes(value).decode("utf-8")
+        elif isinstance(value, str):
+            self._path = self._path_to_bytes(value.encode("utf-8")).decode("utf-8")
+        else:
+            raise TypeError("Path must be of a string type")
 
     @path.deleter
     def path(self):
@@ -445,8 +564,18 @@ class IRI(XRI):
         return self._query
 
     @query.setter
-    def query(self, string):
-        raise NotImplementedError  # TODO
+    def query(self, value):
+        # TODO
+        if value is None:
+            self._query = None
+        elif len(value) == 0:
+            raise ValueError("Query cannot be an empty string (but could be None)")
+        elif isinstance(value, (bytes, bytearray)):
+            self._query = self._query_to_bytes(value).decode("utf-8")
+        elif isinstance(value, str):
+            self._query = self._query_to_bytes(value.encode("utf-8")).decode("utf-8")
+        else:
+            raise TypeError("Query must be of a string type")
 
     @query.deleter
     def query(self):
@@ -457,65 +586,22 @@ class IRI(XRI):
         return self._fragment
 
     @fragment.setter
-    def fragment(self, string):
-        raise NotImplementedError  # TODO
+    def fragment(self, value):
+        # TODO
+        if value is None:
+            self._fragment = None
+        elif len(value) == 0:
+            raise ValueError("Fragment cannot be an empty string (but could be None)")
+        elif isinstance(value, (bytes, bytearray)):
+            self._fragment = self._fragment_to_bytes(value).decode("utf-8")
+        elif isinstance(value, str):
+            self._fragment = self._fragment_to_bytes(value.encode("utf-8")).decode("utf-8")
+        else:
+            raise TypeError("Fragment must be of a string type")
 
     @fragment.deleter
     def fragment(self):
         self._fragment = None
-
-# XRI = namedtuple("XRI", ["scheme", "authority", "path", "query", "fragment"])
-#
-#
-# def _parse(string, symbols):
-#     scheme, colon, scheme_specific_part = string.partition(symbols.COLON)
-#     if not colon:
-#         scheme, scheme_specific_part = None, scheme
-#     auth_path_query, hash_sign, fragment = scheme_specific_part.partition(symbols.HASH)
-#     if not hash_sign:
-#         fragment = None
-#     hierarchical_part, question_mark, query = auth_path_query.partition(symbols.QUERY)
-#     if not question_mark:
-#         query = None
-#     if hierarchical_part.startswith(symbols.SLASH_SLASH):
-#         hierarchical_part = hierarchical_part[2:]
-#         try:
-#             slash = hierarchical_part.index(symbols.SLASH)
-#         except ValueError:
-#             authority = hierarchical_part
-#             path = symbols.EMPTY
-#         else:
-#             authority = hierarchical_part[:slash]
-#             path = hierarchical_part[slash:]
-#     else:
-#         authority = None
-#         path = hierarchical_part
-#     # TODO: strict mode (maybe)
-#     return xri_scheme(scheme), authority, path, query, fragment
-#
-#
-# def xri(value):
-#     """ Create a URI or IRI based on a given `value`.
-#
-#     If the value is already a URI value, an IRI value, or None, this is
-#     returned directly without change. If the value is a `str` object then
-#     an IRI is generated by parsing that string; similarly, a `bytes` or
-#     `bytearray` object is parsed to create a URI.
-#
-#     :param value:
-#     :return: URI or IRI value
-#     :raise TypeError: if the supplied value is not of a supported type
-#     """
-#     if isinstance(value, XRI):
-#         return value
-#     elif isinstance(value, str):
-#         return XRI(*_parse(value, _STRING_SYMBOLS))
-#     elif isinstance(value, (bytes, bytearray)):
-#         return XRI(*_parse(value, _BYTE_SYMBOLS))
-#     elif value is None:
-#         return None
-#     else:
-#         raise TypeError("Resource identifier must be of a string type")
 
 
 def _resolve(base, ref, strict, symbols):
@@ -628,49 +714,3 @@ def _remove_dot_segments(path, symbols):
             new_path += seg
             path = slash + path
     return new_path
-
-
-def _compose(uri, symbols):
-    """ Implementation of RFC3986, section 5.3
-
-    :return:
-    """
-    parts = []
-    if uri.scheme is not None:
-        parts.append(uri.scheme)
-        parts.append(symbols.COLON)
-    if uri.authority is not None:
-        parts.append(symbols.SLASH_SLASH)
-        parts.append(uri.authority)
-    parts.append(uri.path)
-    if uri.query is not None:
-        parts.append(symbols.QUERY)
-        parts.append(uri.query)
-    if uri.fragment is not None:
-        parts.append(symbols.HASH)
-        parts.append(uri.fragment)
-    return parts
-
-
-def _xri_to_str(self):
-    if isinstance(self.path, (bytes, bytearray)):
-        return b"".join(_compose(self, _BYTE_SYMBOLS)).decode("ascii")
-    elif isinstance(self.path, str):
-        return "".join(_compose(self, _STRING_SYMBOLS))
-    else:
-        return NotImplemented
-
-
-XRI.__str__ = _xri_to_str
-
-
-def _xri_repr(self):
-    if isinstance(self.path, (bytes, bytearray)):
-        return f'<{b"".join(_compose(self, _BYTE_SYMBOLS)).decode("ascii")}>'
-    elif isinstance(self.path, str):
-        return f'«{"".join(_compose(self, _STRING_SYMBOLS))}»'
-    else:
-        return NotImplemented
-
-
-XRI.__repr__ = _xri_repr
