@@ -65,30 +65,48 @@ class ParsingTest(TestCase):
         "https://example.com/abc%20def": ("https", "example.com", "/abc def", None, None),
     }
 
+    def assert_components(self, xri, scheme, authority, path, query, fragment):
+        self.assertEqual(xri.scheme, scheme)
+        self.assertEqual(xri.authority, authority)
+        self.assertEqual(xri.path, path)
+        self.assertEqual(xri.query, query)
+        self.assertEqual(xri.fragment, fragment)
+
     def test_uri_cases(self):
         for string, parts in self.cases.items():
             string = string.encode("ascii")
             parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
                 xri = XRI(string)
-                self.assertEqual(xri.scheme, parts[0])
-                self.assertEqual(xri.authority, parts[1])
-                self.assertEqual(xri.path, parts[2])
-                self.assertEqual(xri.query, parts[3])
-                self.assertEqual(xri.fragment, parts[4])
+                self.assert_components(xri, *parts)
 
     def test_iri_cases(self):
         for string, parts in self.cases.items():
             with self.subTest(string):
                 xri = XRI(string)
-                self.assertEqual(xri.scheme, parts[0])
-                self.assertEqual(xri.authority, parts[1])
-                self.assertEqual(xri.path, parts[2])
-                self.assertEqual(xri.query, parts[3])
-                self.assertEqual(xri.fragment, parts[4])
+                self.assert_components(xri, *parts)
 
 
 class XRICastingTest(TestCase):
+
+    def assert_components(self, xri, scheme, authority, path, query, fragment):
+        self.assertEqual(xri.scheme, scheme)
+        self.assertEqual(xri.authority, authority)
+        self.assertEqual(xri.path, path)
+        self.assertEqual(xri.query, query)
+        self.assertEqual(xri.fragment, fragment)
+
+    def test_none_to_none(self):
+        xri = XRI(None)
+        self.assertIsNone(xri)
+
+    def test_empty_bytes_to_empty_uri(self):
+        xri = XRI(b"")
+        self.assert_components(xri, None, None, b"", None, None)
+
+    def test_empty_string_to_empty_iri(self):
+        xri = XRI("")
+        self.assert_components(xri, None, None, "", None, None)
 
     def test_str_to_iri(self):
         iri = XRI("https://example.com/a")
@@ -104,10 +122,6 @@ class XRICastingTest(TestCase):
         uri = XRI(bytearray(b"https://example.com/a"))
         self.assertIsInstance(uri, XRI)
         self.assertIsInstance(uri.path, bytes)
-
-    def test_none_to_none(self):
-        none = XRI(None)
-        self.assertIsNone(none)
 
     def test_iri_to_iri(self):
         iri0 = XRI("https://example.com/a")

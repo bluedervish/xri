@@ -186,33 +186,28 @@ class XRI:
             raise TypeError(f"Unsupported input type {type(string)}")
 
     def __new__(cls, value):
-        if value is None:
-            return None
-        elif isinstance(value, cls):
+        if value is None or isinstance(value, cls):
             return value
-        else:
-            if isinstance(value, str):
-                cls = IRI
-            elif isinstance(value, (bytes, bytearray)):
-                cls = URI
-            return super().__new__(cls)
 
-    def __init__(self, string):
-        if isinstance(string, str):
+        if isinstance(value, str):
+            cls = IRI
             symbols = _STRING_SYMBOLS
-        elif isinstance(string, (bytes, bytearray)):
+        elif isinstance(value, (bytes, bytearray)):
+            cls = URI
             symbols = _BYTE_SYMBOLS
         else:
-            raise TypeError(f"XRI value must be of a string type ({type(string)} found)")
+            raise TypeError(f"XRI value must be of a string type ({type(value)} found)")
 
-        scheme, authority, path, query, fragment = self._parse(string, symbols)
+        scheme, authority, path, query, fragment = cls._parse(value, symbols)
 
+        obj = super().__new__(cls)
         # TODO: strict mode (maybe)
-        self.scheme = scheme
-        self.authority = authority
-        self.path = path
-        self.query = query
-        self.fragment = fragment
+        obj.scheme = scheme
+        obj.authority = authority
+        obj.path = path
+        obj.query = query
+        obj.fragment = fragment
+        return obj
 
     def __repr__(self):
         parts = []
