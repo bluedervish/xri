@@ -196,8 +196,11 @@ class XRI:
             cls = URI
             symbols = _BYTE_SYMBOLS
         else:
-            # If value is not of a type we explicitly recognise, take the
-            # string value, encode it with UTF-8 and treat it as a URI.
+            # If the value is not of a type we explicitly recognise, stringify
+            # it, encode it with UTF-8 and treat it as a URI. This approach is
+            # taken because __str__ implementations are more common than
+            # __bytes__ implementations for objects in general, and URIs are
+            # more widely used and understood than IRIs.
             cls = URI
             value = str(value).encode("utf-8")
             symbols = _BYTE_SYMBOLS
