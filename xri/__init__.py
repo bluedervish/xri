@@ -196,7 +196,11 @@ class XRI:
             cls = URI
             symbols = _BYTE_SYMBOLS
         else:
-            raise TypeError(f"XRI value must be of a string type ({type(value)} found)")
+            # If value is not of a type we explicitly recognise, take the
+            # string value, encode it with UTF-8 and treat it as a URI.
+            cls = URI
+            value = str(value).encode("utf-8")
+            symbols = _BYTE_SYMBOLS
 
         scheme, authority, path, query, fragment = cls._parse(value, symbols)
 
@@ -358,6 +362,16 @@ class URI(XRI):
     def is_private(cls, code):
         return False
 
+    def __new__(cls, value):
+        if value is None or isinstance(value, cls):
+            return value
+        elif isinstance(value, (bytes, bytearray)):
+            return super().__new__(cls, value)
+        elif isinstance(value, str):
+            return super().__new__(cls, value.encode("utf-8"))
+        else:
+            return super().__new__(cls, bytes(value))
+
     def __bytes__(self):
         return b"".join(self._compose(_BYTE_SYMBOLS))
 
@@ -510,6 +524,16 @@ class IRI(XRI):
         return (0xE000 <= code <= 0xF8FF or
                 0xF0000 <= code <= 0xFFFFD or
                 0x100000 <= code <= 0x10FFFD)
+
+    def __new__(cls, value):
+        if value is None or isinstance(value, cls):
+            return value
+        elif isinstance(value, str):
+            return super().__new__(cls, value)
+        elif isinstance(value, (bytes, bytearray)):
+            return super().__new__(cls, value.decode("utf-8"))
+        else:
+            return super().__new__(cls, str(value))
 
     def __bytes__(self):
         return "".join(self._compose(_STRING_SYMBOLS)).encode("utf-8")
