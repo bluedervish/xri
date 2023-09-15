@@ -26,7 +26,7 @@ class XRITestCase(TestCase):
     def assert_components(self, xri, scheme, authority, path, query, fragment):
         self.assertEqual(xri.scheme, scheme)
         self.assertEqual(xri.authority, authority)
-        self.assertEqual(xri.path, path)
+        self.assertEqual(path.__class__(xri.path), path)
         self.assertEqual(xri.query, query)
         self.assertEqual(xri.fragment, fragment)
 
@@ -106,28 +106,23 @@ class XRICastingTest(XRITestCase):
 
     def test_str_to_iri(self):
         iri = XRI("https://example.com/a")
-        self.assertIsInstance(iri, XRI)
-        self.assertIsInstance(iri.path, str)
+        self.assertIsInstance(iri, IRI)
 
     def test_bytes_to_uri(self):
         uri = XRI(b"https://example.com/a")
-        self.assertIsInstance(uri, XRI)
-        self.assertIsInstance(uri.path, bytes)
+        self.assertIsInstance(uri, URI)
 
     def test_bytearray_to_uri(self):
         uri = XRI(bytearray(b"https://example.com/a"))
-        self.assertIsInstance(uri, XRI)
-        self.assertIsInstance(uri.path, bytes)
+        self.assertIsInstance(uri, URI)
 
     def test_iri_to_iri(self):
         iri = XRI(IRI("https://example.com/a"))
-        self.assertIsInstance(iri, XRI)
-        self.assertIsInstance(iri.path, str)
+        self.assertIsInstance(iri, IRI)
 
     def test_uri_to_uri(self):
         uri = XRI(URI(b"https://example.com/a"))
-        self.assertIsInstance(uri, XRI)
-        self.assertIsInstance(uri.path, bytes)
+        self.assertIsInstance(uri, URI)
 
 
 class URICastingTest(XRITestCase):
@@ -145,29 +140,31 @@ class URICastingTest(XRITestCase):
         self.assert_components(uri, None, None, b"", None, None)
 
     def test_str_to_uri(self):
-        uri = URI("https://example.com/a")
+        uri = URI("https://example.com/ä")
         self.assertIsInstance(uri, URI)
-        self.assertIsInstance(uri.path, bytes)
+        self.assert_components(uri, b"https", b"example.com", b"/\xC3\xA4", None, None)
+        self.assertEqual(str(uri), "https://example.com/%C3%A4")
 
     def test_bytes_to_uri(self):
         uri = URI(b"https://example.com/a")
         self.assertIsInstance(uri, URI)
-        self.assertIsInstance(uri.path, bytes)
+        self.assert_components(uri, b"https", b"example.com", b"/a", None, None)
 
     def test_bytearray_to_uri(self):
         uri = URI(bytearray(b"https://example.com/a"))
         self.assertIsInstance(uri, URI)
-        self.assertIsInstance(uri.path, bytes)
+        self.assert_components(uri, b"https", b"example.com", b"/a", None, None)
 
     def test_iri_to_uri(self):
-        uri = URI(IRI("https://example.com/a"))
+        uri = URI(IRI("https://example.com/ä"))
         self.assertIsInstance(uri, URI)
-        self.assertIsInstance(uri.path, bytes)
+        self.assert_components(uri, b"https", b"example.com", b"/\xC3\xA4", None, None)
+        self.assertEqual(str(uri), "https://example.com/%C3%A4")
 
     def test_uri_to_uri(self):
         uri = URI(URI(b"https://example.com/a"))
         self.assertIsInstance(uri, URI)
-        self.assertIsInstance(uri.path, bytes)
+        self.assert_components(uri, b"https", b"example.com", b"/a", None, None)
 
 
 class IRICastingTest(XRITestCase):
@@ -185,26 +182,26 @@ class IRICastingTest(XRITestCase):
         self.assert_components(iri, None, None, "", None, None)
 
     def test_str_to_uri(self):
-        iri = IRI("https://example.com/a")
+        iri = IRI("https://example.com/ä")
         self.assertIsInstance(iri, IRI)
-        self.assertIsInstance(iri.path, str)
+        self.assert_components(iri, "https", "example.com", "/ä", None, None)
 
     def test_bytes_to_uri(self):
         iri = IRI(b"https://example.com/a")
         self.assertIsInstance(iri, IRI)
-        self.assertIsInstance(iri.path, str)
+        self.assert_components(iri, "https", "example.com", "/a", None, None)
 
     def test_bytearray_to_uri(self):
         iri = IRI(bytearray(b"https://example.com/a"))
         self.assertIsInstance(iri, IRI)
-        self.assertIsInstance(iri.path, str)
+        self.assert_components(iri, "https", "example.com", "/a", None, None)
 
     def test_iri_to_iri(self):
-        iri = IRI(IRI("https://example.com/a"))
+        iri = IRI(IRI("https://example.com/ä"))
         self.assertIsInstance(iri, IRI)
-        self.assertIsInstance(iri.path, str)
+        self.assert_components(iri, "https", "example.com", "/ä", None, None)
 
     def test_uri_to_iri(self):
         iri = IRI(URI(b"https://example.com/a"))
         self.assertIsInstance(iri, IRI)
-        self.assertIsInstance(iri.path, str)
+        self.assert_components(iri, "https", "example.com", "/a", None, None)

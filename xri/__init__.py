@@ -30,6 +30,8 @@ GENERAL_DELIMITERS = b":/?#[]@"
 SUB_DELIMITERS = b"!$&'()*+,;="
 RESERVED = GENERAL_DELIMITERS + SUB_DELIMITERS                # RFC 3986 § 2.2
 
+FRAGMENT_SAFE = SUB_DELIMITERS + b":/?@"
+
 
 _CHARS = [chr(i).encode("iso-8859-1") for i in range(256)]
 _PCT_ENCODED_CHARS = [f"%{i:02X}".encode("ascii") for i in range(256)]
@@ -56,11 +58,94 @@ _BYTE_SYMBOLS = type("ByteSymbols", (), {key: value.encode("ascii") for key, val
 _STRING_SYMBOLS = type("StringSymbols", (), _SYMBOLS)()
 
 
+def _to_bytes(value) -> bytes:
+    """ Coerce value to bytes, assuming UTF-8 encoding if appropriate.
+
+    >>> _to_bytes(None)
+    b''
+    >>> _to_bytes("café")
+    b'caf\xC3\xA9'
+    >>> _to_bytes(b"abc")
+    b'abc'
+    >>> _to_bytes(123)
+    b'123'
+    >>> _to_bytes(12.3)
+    b'12.3'
+
+    """
+    if not value:
+        return b""
+    elif isinstance(value, (bytes, bytearray)):
+        return bytes(value)
+    elif isinstance(value, int):
+        return str(value).encode("utf-8")
+    else:
+        try:
+            return value.encode("utf-8")
+        except (AttributeError, UnicodeEncodeError):
+            try:
+                return bytes(value)
+            except TypeError:
+                return str(value).encode("utf-8")
+
+
+def _to_str(value) -> str:
+    """ Coerce value to a string, assuming UTF-8 encoding if appropriate.
+
+    >>> _to_str(None)
+    ''
+    >>> _to_str("café")
+    'café'
+    >>> _to_str(b"abc")
+    'abc'
+    >>> _to_str(123)
+    '123'
+    >>> _to_str(12.3)
+    '12.3'
+
+    """
+    if not value:
+        return ""
+    elif isinstance(value, str):
+        return value
+    else:
+        try:
+            return value.decode("utf-8")
+        except (AttributeError, UnicodeDecodeError):
+            return str(value)
+
+
 class XRI:
+
+    class Path:
+
+        @classmethod
+        def parse(cls, string):
+            """ Parse and decode a string value into a Path object.
+            """
+            raise NotImplementedError
+
+        def __init__(self, segments=()):
+            self._segments = list(segments)
+
+        def __repr__(self):
+            return f"{self.__class__.__qualname__}([{', '.join(map(repr, self._segments))}])"
+
+        def __len__(self):
+            return len(self._segments)
+
+        def __iter__(self):
+            return iter(self._segments)
+
+        def __bytes__(self):
+            return b"/".join(map(_to_bytes, self._segments))
+
+        def __str__(self):
+            return "/".join(map(_to_str, self._segments))
 
     _scheme = None
     _authority = None
-    _path = b""
+    _path = Path()
     _query = None
     _fragment = None
 
@@ -264,7 +349,7 @@ class XRI:
         return tuple(map(cls.pct_decode, (scheme, authority, path, query, fragment)))
 
     @classmethod
-    def _scheme_to_bytes(cls, string: bytes) -> bytes:
+    def _parse_scheme(cls, string: bytes) -> bytes:
         """ Validate and normalise a scheme name.
 
         Schemes can only consist of ASCII characters, even for IRIs.
@@ -300,24 +385,17 @@ class XRI:
         return bytes(byte_string)
 
     @classmethod
-    def _authority_to_bytes(cls, string: bytes) -> bytes:
+    def _parse_authority(cls, string: bytes) -> bytes:
         # TODO
         return bytes(string)
 
     @classmethod
-    def _path_to_bytes(cls, string: bytes) -> bytes:
-        # Note: percent decoding is not carried out here, as it is only relevant
-        # when considering the URI/IRI as a whole.
+    def _parse_query(cls, string: bytes) -> bytes:
         # TODO
         return bytes(string)
 
     @classmethod
-    def _query_to_bytes(cls, string: bytes) -> bytes:
-        # TODO
-        return bytes(string)
-
-    @classmethod
-    def _fragment_to_bytes(cls, string: bytes) -> bytes:
+    def _parse_fragment(cls, string: bytes) -> bytes:
         # TODO
         return bytes(string)
 
@@ -326,21 +404,27 @@ class XRI:
 
         :return:
         """
-        # TODO: percent encoding
         parts = []
         if self.scheme is not None:
+            # Percent encoding is not required for the scheme, as only
+            # ASCII characters A-Z, a-z, 0-9, '+', '-', and '.' are allowed.
             parts.append(self.scheme)
             parts.append(symbols.COLON)
         if self.authority is not None:
+            # TODO: percent encoding
             parts.append(symbols.SLASH_SLASH)
             parts.append(self.authority)
-        parts.append(self.path)
+        # TODO: full set of percent encoding rules for paths
+        parts.append(symbols.SLASH.join(self.pct_encode(segment, safe=symbols.SLASH) for segment in self.path))
         if self.query is not None:
+            # TODO: percent encoding
             parts.append(symbols.QUERY)
             parts.append(self.query)
         if self.fragment is not None:
+            # Fragments may contain any unreserved characters, sub-delimiters,
+            # or any of ":@/?". Everything else must be percent encoded.
             parts.append(symbols.HASH)
-            parts.append(self.fragment)
+            parts.append(self.pct_encode(self.fragment, safe=FRAGMENT_SAFE))
         return parts
 
     def resolve(self, ref, strict=True):
@@ -348,6 +432,22 @@ class XRI:
 
 
 class URI(XRI):
+
+    class Path(XRI.Path):
+
+        @classmethod
+        def parse(cls, string):
+            if isinstance(string, (bytes, bytearray)):
+                return cls(map(URI.pct_decode, string.split(b"/")))
+            elif isinstance(string, str):
+                return cls(map(URI.pct_decode, string.encode("utf-8").split(b"/")))
+            else:
+                raise TypeError("Path value must be a string")
+
+        def __eq__(self, other):
+            if isinstance(other, (bytes, bytearray, str)):
+                other = self.parse(other)
+            return bytes(self) == bytes(other)
 
     @classmethod
     def is_unreserved(cls, code):
@@ -379,6 +479,10 @@ class URI(XRI):
         return b"".join(self._compose(_BYTE_SYMBOLS))
 
     def __str__(self):
+        # The "ascii" codec should never trigger a UnicodeDecodeError here,
+        # as the _compose function is responsible for percent-encoding all
+        # characters outside of the ASCII range. Therefore, only ASCII-
+        # compatible characters should exist within the _compose output.
         return b"".join(self._compose(_BYTE_SYMBOLS)).decode("ascii")
 
     @property
@@ -399,9 +503,9 @@ class URI(XRI):
         elif len(value) == 0:
             raise ValueError("Scheme cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
-            self._scheme = self._scheme_to_bytes(value)
+            self._scheme = self._parse_scheme(value)
         elif isinstance(value, str):
-            self._scheme = self._scheme_to_bytes(value.encode("utf-8"))
+            self._scheme = self._parse_scheme(value.encode("utf-8"))
         else:
             raise TypeError("Scheme must be of a string type")
 
@@ -419,9 +523,9 @@ class URI(XRI):
         if value is None:
             self._authority = None
         elif isinstance(value, (bytes, bytearray)):
-            self._authority = self._authority_to_bytes(value)
+            self._authority = self._parse_authority(value)
         elif isinstance(value, str):
-            self._authority = self._authority_to_bytes(value.encode("utf-8"))
+            self._authority = self._parse_authority(value.encode("utf-8"))
         else:
             raise TypeError("Authority must be of a string type")
 
@@ -431,19 +535,20 @@ class URI(XRI):
 
     @property
     def path(self):
+        # TODO: pct_encode
         return self._path
 
     @path.setter
     def path(self, value):
-        # TODO
         if value is None:
             raise ValueError("Path cannot be None (but could be an empty string)")
-        elif isinstance(value, (bytes, bytearray)):
-            self._path = self._path_to_bytes(value)
-        elif isinstance(value, str):
-            self._path = self._path_to_bytes(value.encode("utf-8"))
+        elif isinstance(value, (bytes, bytearray, str)):
+            self._path = self.Path.parse(value)
         else:
-            raise TypeError("Path must be of a string type")
+            try:
+                self._path = self.Path(map(_to_bytes, iter(value)))
+            except TypeError:
+                raise TypeError("Path must be a string or an iterable of string segments")
 
     @path.deleter
     def path(self):
@@ -461,9 +566,9 @@ class URI(XRI):
         elif len(value) == 0:
             raise ValueError("Query cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
-            self._query = self._query_to_bytes(value)
+            self._query = self._parse_query(value)
         elif isinstance(value, str):
-            self._query = self._query_to_bytes(value.encode("utf-8"))
+            self._query = self._parse_query(value.encode("utf-8"))
         else:
             raise TypeError("Query must be of a string type")
 
@@ -483,9 +588,9 @@ class URI(XRI):
         elif len(value) == 0:
             raise ValueError("Fragment cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
-            self._fragment = self._fragment_to_bytes(value)
+            self._fragment = self._parse_fragment(value)
         elif isinstance(value, str):
-            self._fragment = self._fragment_to_bytes(value.encode("utf-8"))
+            self._fragment = self._parse_fragment(value.encode("utf-8"))
         else:
             raise TypeError("Fragment must be of a string type")
 
@@ -498,6 +603,22 @@ class URI(XRI):
 
 
 class IRI(XRI):
+
+    class Path(XRI.Path):
+
+        @classmethod
+        def parse(cls, string):
+            if isinstance(string, (bytes, bytearray)):
+                return cls(IRI.pct_decode(segment.decode("utf-8")) for segment in string.split(b"/"))
+            elif isinstance(string, str):
+                return cls(map(IRI.pct_decode, string.split("/")))
+            else:
+                raise TypeError("Path value must be a string")
+
+        def __eq__(self, other):
+            if isinstance(other, (bytes, bytearray, str)):
+                other = self.parse(other)
+            return str(self) == str(other)
 
     @classmethod
     def is_unreserved(cls, code):
@@ -562,9 +683,9 @@ class IRI(XRI):
         elif len(value) == 0:
             raise ValueError("Scheme cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
-            self._scheme = self._scheme_to_bytes(value).decode("utf-8")
+            self._scheme = self._parse_scheme(value).decode("utf-8")
         elif isinstance(value, str):
-            self._scheme = self._scheme_to_bytes(value.encode("utf-8")).decode("utf-8")
+            self._scheme = self._parse_scheme(value.encode("utf-8")).decode("utf-8")
         else:
             raise TypeError("Scheme must be of a string type")
 
@@ -582,9 +703,9 @@ class IRI(XRI):
         if value is None:
             self._authority = None
         elif isinstance(value, (bytes, bytearray)):
-            self._authority = self._authority_to_bytes(value).decode("utf-8")
+            self._authority = self._parse_authority(value).decode("utf-8")
         elif isinstance(value, str):
-            self._authority = self._authority_to_bytes(value.encode("utf-8")).decode("utf-8")
+            self._authority = self._parse_authority(value.encode("utf-8")).decode("utf-8")
         else:
             raise TypeError("Authority must be of a string type")
 
@@ -600,12 +721,13 @@ class IRI(XRI):
     def path(self, value):
         if value is None:
             raise ValueError("Path cannot be None (but could be an empty string)")
-        elif isinstance(value, (bytes, bytearray)):
-            self._path = self._path_to_bytes(value).decode("utf-8")
-        elif isinstance(value, str):
-            self._path = self._path_to_bytes(value.encode("utf-8")).decode("utf-8")
+        elif isinstance(value, (bytes, bytearray, str)):
+            self._path = self.Path.parse(value)
         else:
-            raise TypeError("Path must be of a string type")
+            try:
+                self._path = self.Path(map(_to_str, iter(value)))
+            except TypeError:
+                raise TypeError("Path must be a string or an iterable of string segments")
 
     @path.deleter
     def path(self):
@@ -623,9 +745,9 @@ class IRI(XRI):
         elif len(value) == 0:
             raise ValueError("Query cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
-            self._query = self._query_to_bytes(value).decode("utf-8")
+            self._query = self._parse_query(value).decode("utf-8")
         elif isinstance(value, str):
-            self._query = self._query_to_bytes(value.encode("utf-8")).decode("utf-8")
+            self._query = self._parse_query(value.encode("utf-8")).decode("utf-8")
         else:
             raise TypeError("Query must be of a string type")
 
@@ -645,9 +767,9 @@ class IRI(XRI):
         elif len(value) == 0:
             raise ValueError("Fragment cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
-            self._fragment = self._fragment_to_bytes(value).decode("utf-8")
+            self._fragment = self._parse_fragment(value).decode("utf-8")
         elif isinstance(value, str):
-            self._fragment = self._fragment_to_bytes(value.encode("utf-8")).decode("utf-8")
+            self._fragment = self._parse_fragment(value.encode("utf-8")).decode("utf-8")
         else:
             raise TypeError("Fragment must be of a string type")
 
