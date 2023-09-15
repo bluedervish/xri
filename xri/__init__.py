@@ -30,6 +30,7 @@ GENERAL_DELIMITERS = b":/?#[]@"
 SUB_DELIMITERS = b"!$&'()*+,;="
 RESERVED = GENERAL_DELIMITERS + SUB_DELIMITERS                # RFC 3986 § 2.2
 
+PATH_SAFE = SUB_DELIMITERS + b":@"  # TODO confirm colon rules (see 'segment-nz-nc' in RFC)
 FRAGMENT_SAFE = SUB_DELIMITERS + b":/?@"
 
 
@@ -136,12 +137,6 @@ class XRI:
 
         def __iter__(self):
             return iter(self._segments)
-
-        def __bytes__(self):
-            return b"/".join(map(_to_bytes, self._segments))
-
-        def __str__(self):
-            return "/".join(map(_to_str, self._segments))
 
     _scheme = None
     _authority = None
@@ -449,6 +444,12 @@ class URI(XRI):
                 other = self.parse(other)
             return bytes(self) == bytes(other)
 
+        def __bytes__(self):
+            return b"/".join(URI.pct_encode(_to_bytes(segment), safe=PATH_SAFE) for segment in self._segments)
+
+        def __str__(self):
+            return "/".join(URI.pct_encode(_to_str(segment), safe=PATH_SAFE) for segment in self._segments)
+
     @classmethod
     def is_unreserved(cls, code):
         """ RFC 3986 § 2.3
@@ -619,6 +620,12 @@ class IRI(XRI):
             if isinstance(other, (bytes, bytearray, str)):
                 other = self.parse(other)
             return str(self) == str(other)
+
+        def __bytes__(self):
+            return b"/".join(IRI.pct_encode(_to_bytes(segment), safe=PATH_SAFE) for segment in self._segments)
+
+        def __str__(self):
+            return "/".join(IRI.pct_encode(_to_str(segment), safe=PATH_SAFE) for segment in self._segments)
 
     @classmethod
     def is_unreserved(cls, code):
