@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
-
+from abc import ABC
 # Copyright 2023, Nigel Small
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
 # limitations under the License.
 
 
+from collections.abc import MutableSequence
 from typing import Optional, List
 
 
@@ -118,16 +119,26 @@ def _to_str(value) -> str:
 
 class XRI:
 
-    class Path:
+    class Path(MutableSequence, ABC):
 
         @classmethod
         def parse(cls, string):
             """ Parse and decode a string value into a Path object.
             """
-            raise NotImplementedError
+            if isinstance(string, (bytes, bytearray)):
+                return URI.Path.parse(string)
+            elif isinstance(string, str):
+                return IRI.Path.parse(string)
+            else:
+                raise TypeError("Path value must be a string")
 
-        def __init__(self, segments=()):
-            self._segments = list(segments)
+        def __new__(cls, segments=()):
+            if isinstance(segments, (bytes, bytearray, str)):
+                return cls.parse(segments)
+            else:
+                obj = super().__new__(cls)
+                obj._segments = list(segments)
+                return obj
 
         def __repr__(self):
             return f"{self.__class__.__qualname__}([{', '.join(map(repr, self._segments))}])"
@@ -137,6 +148,18 @@ class XRI:
 
         def __iter__(self):
             return iter(self._segments)
+
+        def __getitem__(self, index):
+            return self._segments[index]
+
+        def __setitem__(self, index, value):
+            raise NotImplementedError
+
+        def __delitem__(self, index):
+            del self._segments[index]
+
+        def insert(self, index, value):
+            raise NotImplementedError
 
     _scheme = None
     _authority = None
@@ -450,6 +473,21 @@ class URI(XRI):
         def __str__(self):
             return "/".join(URI.pct_encode(_to_str(segment), safe=PATH_SAFE) for segment in self._segments)
 
+        def __repr__(self):
+            return f"{self.__class__.__qualname__}({bytes(self)!r})"
+
+        def __setitem__(self, index, value):
+            if isinstance(value, str):
+                self._segments[index] = value.encode("utf-8")
+            else:
+                self._segments[index] = bytes(value)
+
+        def insert(self, index, value):
+            if isinstance(value, str):
+                self._segments.insert(index, value.encode("utf-8"))
+            else:
+                self._segments.insert(index, bytes(value))
+
     @classmethod
     def is_unreserved(cls, code):
         """ RFC 3986 § 2.3
@@ -626,6 +664,21 @@ class IRI(XRI):
 
         def __str__(self):
             return "/".join(IRI.pct_encode(_to_str(segment), safe=PATH_SAFE) for segment in self._segments)
+
+        def __repr__(self):
+            return f"{self.__class__.__qualname__}({str(self)!r})"
+
+        def __setitem__(self, index, value):
+            if isinstance(value, (bytes, bytearray)):
+                self._segments[index] = value.decode("utf-8")
+            else:
+                self._segments[index] = str(value)
+
+        def insert(self, index, value):
+            if isinstance(value, (bytes, bytearray)):
+                self._segments.insert(index, value.decode("utf-8"))
+            else:
+                self._segments.insert(index, str(value))
 
     @classmethod
     def is_unreserved(cls, code):
