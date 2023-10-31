@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- encoding: utf-8 -*-
-from abc import ABC
+
 # Copyright 2023, Nigel Small
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@ from abc import ABC
 # limitations under the License.
 
 
+from abc import ABC
 from collections.abc import MutableSequence
 from typing import Optional, List
 
@@ -119,6 +120,9 @@ def _to_str(value) -> str:
 
 class XRI:
 
+    class Authority(ABC):
+        pass  # TODO
+
     class Path(MutableSequence, ABC):
 
         @classmethod
@@ -160,6 +164,9 @@ class XRI:
 
         def insert(self, index, value):
             raise NotImplementedError
+
+    class Query(ABC):
+        pass  # TODO
 
     _scheme = None
     _authority = None
@@ -451,6 +458,9 @@ class XRI:
 
 class URI(XRI):
 
+    class Authority(XRI.Authority):
+        pass  # TODO
+
     class Path(XRI.Path):
 
         @classmethod
@@ -487,6 +497,9 @@ class URI(XRI):
                 self._segments.insert(index, value.encode("utf-8"))
             else:
                 self._segments.insert(index, bytes(value))
+
+    class Query(XRI.Query):
+        pass  # TODO
 
     @classmethod
     def is_unreserved(cls, code):
@@ -643,6 +656,9 @@ class URI(XRI):
 
 class IRI(XRI):
 
+    class Authority(XRI.Authority):
+        pass  # TODO
+
     class Path(XRI.Path):
 
         @classmethod
@@ -679,6 +695,9 @@ class IRI(XRI):
                 self._segments.insert(index, value.decode("utf-8"))
             else:
                 self._segments.insert(index, str(value))
+
+    class Query(XRI.Query):
+        pass  # TODO
 
     @classmethod
     def is_unreserved(cls, code):
