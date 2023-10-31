@@ -465,7 +465,7 @@ class URI(XRI):
         def __eq__(self, other):
             if isinstance(other, (bytes, bytearray, str)):
                 other = self.parse(other)
-            return bytes(self) == bytes(other)
+            return list(self) == list(other)
 
         def __bytes__(self):
             return b"/".join(URI.pct_encode(_to_bytes(segment), safe=PATH_SAFE) for segment in self._segments)
@@ -657,7 +657,7 @@ class IRI(XRI):
         def __eq__(self, other):
             if isinstance(other, (bytes, bytearray, str)):
                 other = self.parse(other)
-            return str(self) == str(other)
+            return list(self) == list(other)
 
         def __bytes__(self):
             return b"/".join(IRI.pct_encode(_to_bytes(segment), safe=PATH_SAFE) for segment in self._segments)

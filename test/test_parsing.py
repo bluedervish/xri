@@ -26,7 +26,7 @@ class XRITestCase(TestCase):
     def assert_components(self, xri, scheme, authority, path, query, fragment):
         self.assertEqual(xri.scheme, scheme)
         self.assertEqual(xri.authority, authority)
-        self.assertEqual(path.__class__(xri.path), path)
+        self.assertEqual(xri.path, path)
         self.assertEqual(xri.query, query)
         self.assertEqual(xri.fragment, fragment)
 
