@@ -59,7 +59,7 @@ These operate slightly differently, depending on the base class, as a slightly d
 '20%25%20of%20%C2%A3125%20is%20%C2%A325'
 >>> IRI.pct_encode("20% of £125 is £25")                        # '£' is safe within an IRI
 '20%25%20of%20£125%20is%20£25'
->>> URI.pct_decode('20%25%20of%20%C2%A3125%20is%20%C2%A325')    # string in, string out (using UTF-8)
+>>> URI.pct_decode('20%25%20of%20%C2%A3125%20is%20%C2%A325')    # str in, str out (using UTF-8)
 '20% of £125 is £25'
 >>> URI.pct_decode(b'20%25%20of%20%C2%A3125%20is%20%C2%A325')   # bytes in, bytes out (no UTF-8)
 b'20% of \xc2\xa3125 is \xc2\xa325'
