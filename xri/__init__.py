@@ -30,8 +30,9 @@ DIGIT = b"0123456789"
 
 GENERAL_DELIMITERS = b":/?#[]@"
 SUB_DELIMITERS = b"!$&'()*+,;="
-RESERVED = GENERAL_DELIMITERS + SUB_DELIMITERS                # RFC 3986 § 2.2
+RESERVED = GENERAL_DELIMITERS + SUB_DELIMITERS          # RFC 3986 § 2.2
 
+USERINFO_SAFE = SUB_DELIMITERS + b":"                   # RFC 3986 § 3.2.1
 PATH_SAFE = SUB_DELIMITERS + b":@"  # TODO confirm colon rules (see 'segment-nz-nc' in RFC)
 FRAGMENT_SAFE = SUB_DELIMITERS + b":/?@"
 
@@ -121,7 +122,59 @@ def _to_str(value) -> str:
 class XRI:
 
     class Authority(ABC):
-        pass  # TODO
+
+        _host = ""
+        _port = None
+        _userinfo = None
+
+        @classmethod
+        def _parse_userinfo(cls, string: bytes) -> bytes:
+            """ Validate and normalise user information.
+
+            .. seealso::
+                `RFC 3986 § 3.2.1`_
+
+            .. _`RFC 3986 § 3.2.1`: http://tools.ietf.org/html/rfc3986#section-3.2.1
+            """
+            return string  # TODO
+
+        @classmethod
+        def _parse_host(cls, string: bytes) -> bytes:
+            """ Validate and normalise a host value.
+
+            .. seealso::
+                `RFC 3986 § 3.2.2`_
+
+            .. _`RFC 3986 § 3.2.2`: http://tools.ietf.org/html/rfc3986#section-3.2.2
+            """
+            return string  # TODO
+
+        @classmethod
+        def parse(cls, string):
+            """ Parse and decode a string value into an Authority object.
+            """
+            if isinstance(string, (bytes, bytearray)):
+                return URI.Authority.parse(string)
+            elif isinstance(string, str):
+                return IRI.Authority.parse(string)
+            else:
+                raise TypeError("Authority value must be a string")
+
+        def __new__(cls, host, port=None, userinfo=None):
+            if isinstance(host, (bytes, bytearray)):
+                return URI.Authority(host, port=port, userinfo=userinfo)
+            elif isinstance(host, str):
+                return IRI.Authority(host, port=port, userinfo=userinfo)
+            else:
+                raise TypeError("Host value must be a string")
+
+        def __repr__(self):
+            parts = [repr(self._host)]
+            if self._port is not None:
+                parts.append(f"port={self._port!r}")
+            if self._userinfo is not None:
+                parts.append(f"userinfo={self._userinfo!r}")
+            return f"{self.__class__.__qualname__}({', '.join(parts)})"
 
     class Path(MutableSequence, ABC):
 
@@ -410,11 +463,6 @@ class XRI:
         return bytes(byte_string)
 
     @classmethod
-    def _parse_authority(cls, string: bytes) -> bytes:
-        # TODO
-        return bytes(string)
-
-    @classmethod
     def _parse_query(cls, string: bytes) -> bytes:
         # TODO
         return bytes(string)
@@ -438,9 +486,9 @@ class XRI:
         if self.authority is not None:
             # TODO: percent encoding
             parts.append(symbols.SLASH_SLASH)
-            parts.append(self.authority)
+            parts.append(self.authority.compose())
         # TODO: full set of percent encoding rules for paths
-        parts.append(symbols.SLASH.join(self.pct_encode(segment, safe=symbols.SLASH) for segment in self.path))
+        parts.append(self.path.compose())
         if self.query is not None:
             # TODO: percent encoding
             parts.append(symbols.QUERY)
@@ -452,6 +500,9 @@ class XRI:
             parts.append(self.pct_encode(self.fragment, safe=FRAGMENT_SAFE))
         return parts
 
+    def compose(self):
+        raise NotImplementedError
+
     def resolve(self, ref, strict=True):
         raise NotImplementedError
 
@@ -459,7 +510,105 @@ class XRI:
 class URI(XRI):
 
     class Authority(XRI.Authority):
-        pass  # TODO
+
+        @classmethod
+        def parse(cls, string):
+            if isinstance(string, str):
+                string = string.encode("utf-8")
+            elif not isinstance(string, (bytes, bytearray)):
+                raise TypeError("Authority value must be a string")
+
+            if b"@" in string:
+                userinfo, _, host_port = string.partition(b"@")
+            else:
+                userinfo = None
+                host_port = string
+
+            host, _, port = host_port.partition(b":")
+            return cls(host, port=(port or None), userinfo=URI.pct_decode(userinfo))
+
+        def compose(self):
+            return bytes(self)
+
+        def __new__(cls, host, port=None, userinfo=None):
+            obj = object.__new__(cls)
+            obj.host = host
+            obj.port = port
+            obj.userinfo = userinfo
+            return obj
+
+        def __eq__(self, other):
+            if isinstance(other, (bytes, bytearray, str)):
+                other = self.parse(other)
+            return (self.userinfo, self.host, self.port) == (other.userinfo, other.host, other.port)
+
+        def __bytes__(self):
+            parts = [self._host]
+            if self._port is not None:
+                parts.append(b":")
+                parts.append(self._port)
+            if self._userinfo is not None:
+                parts.insert(0, b"@")
+                parts.insert(0, URI.pct_encode(self._userinfo, safe=USERINFO_SAFE))
+            return b"".join(map(_to_bytes, parts))
+
+        def __str__(self):
+            parts = [self._host]
+            if self._port is not None:
+                parts.append(":")
+                parts.append(self._port)
+            if self._userinfo is not None:
+                parts.insert(0, "@")
+                parts.insert(0, URI.pct_encode(self._userinfo, safe=USERINFO_SAFE))
+            return "".join(map(_to_str, parts))
+
+        @property
+        def host(self):
+            return self._host
+
+        @host.setter
+        def host(self, value):
+            if value is None:
+                raise ValueError("Host cannot be None")
+            elif isinstance(value, (bytes, bytearray)):
+                self._host = self._parse_host(value)
+            elif isinstance(value, str):
+                self._host = self._parse_host(value.encode("utf-8"))
+            else:
+                raise TypeError("Host must be of a string type")
+
+        @property
+        def port(self):
+            try:
+                return int(self._port)
+            except (TypeError, ValueError):
+                return self._port
+
+        @port.setter
+        def port(self, value):
+            if value is None:
+                self._port = None
+            elif isinstance(value, (bytes, bytearray, int)):
+                self._port = value
+            elif isinstance(value, str):
+                self._port = value.encode("utf-8")
+            else:
+                raise TypeError("Port must be of a string or integer type")
+
+        @property
+        def userinfo(self):
+            return self._userinfo
+
+        @userinfo.setter
+        def userinfo(self, value):
+            if value is None:
+                self._userinfo = None
+            elif isinstance(value, (bytes, bytearray)):
+                self._userinfo = self._parse_userinfo(value)
+            elif isinstance(value, str):
+                self._userinfo = self._parse_userinfo(value.encode("utf-8"))
+            else:
+                raise TypeError("User information must be of a string type")
 
     class Path(XRI.Path):
 
@@ -471,6 +620,9 @@ class URI(XRI):
                 return cls(map(URI.pct_decode, string.encode("utf-8").split(b"/")))
             else:
                 raise TypeError("Path value must be a string")
+
+        def compose(self):
+            return bytes(self)
 
         def __eq__(self, other):
             if isinstance(other, (bytes, bytearray, str)):
@@ -575,9 +727,9 @@ class URI(XRI):
         if value is None:
             self._authority = None
         elif isinstance(value, (bytes, bytearray)):
-            self._authority = self._parse_authority(value)
+            self._authority = URI.Authority.parse(value)
         elif isinstance(value, str):
-            self._authority = self._parse_authority(value.encode("utf-8"))
+            self._authority = URI.Authority.parse(value.encode("utf-8"))
         else:
             raise TypeError("Authority must be of a string type")
 
@@ -650,6 +802,9 @@ class URI(XRI):
     def fragment(self):
         self._fragment = None
 
+    def compose(self):
+        return bytes(self)
+
     def resolve(self, ref, strict=True):
         raise NotImplementedError
 
@@ -657,7 +812,105 @@ class URI(XRI):
 class IRI(XRI):
 
     class Authority(XRI.Authority):
-        pass  # TODO
+
+        @classmethod
+        def parse(cls, string):
+            if isinstance(string, (bytes, bytearray)):
+                string = string.decode("utf-8")
+            elif not isinstance(string, str):
+                raise TypeError("Authority value must be a string")
+
+            if "@" in string:
+                userinfo, _, host_port = string.partition("@")
+            else:
+                userinfo = None
+                host_port = string
+
+            host, _, port = host_port.partition(":")
+            return cls(host, port=(port or None), userinfo=IRI.pct_decode(userinfo))
+
+        def compose(self):
+            return str(self)
+
+        def __new__(cls, host, port=None, userinfo=None):
+            obj = object.__new__(cls)
+            obj.host = host
+            obj.port = port
+            obj.userinfo = userinfo
+            return obj
+
+        def __eq__(self, other):
+            if isinstance(other, (bytes, bytearray, str)):
+                other = self.parse(other)
+            return (self.userinfo, self.host, self.port) == (other.userinfo, other.host, other.port)
+
+        def __bytes__(self):
+            parts = [self._host]
+            if self._port is not None:
+                parts.append(b":")
+                parts.append(self._port)
+            if self._userinfo is not None:
+                parts.insert(0, b"@")
+                parts.insert(0, IRI.pct_encode(self._userinfo, safe=USERINFO_SAFE))
+            return b"".join(map(_to_bytes, parts))
+
+        def __str__(self):
+            parts = [self._host]
+            if self._port is not None:
+                parts.append(":")
+                parts.append(self._port)
+            if self._userinfo is not None:
+                parts.insert(0, "@")
+                parts.insert(0, IRI.pct_encode(self._userinfo, safe=USERINFO_SAFE))
+            return "".join(map(_to_str, parts))
+
+        @property
+        def host(self):
+            return self._host
+
+        @host.setter
+        def host(self, value):
+            if value is None:
+                raise ValueError("Host cannot be None")
+            elif isinstance(value, (bytes, bytearray)):
+                self._host = self._parse_host(value).decode("utf-8")
+            elif isinstance(value, str):
+                self._host = self._parse_host(value.encode("utf-8")).decode("utf-8")
+            else:
+                raise TypeError("Host must be of a string type")
+
+        @property
+        def port(self):
+            try:
+                return int(self._port)
+            except (TypeError, ValueError):
+                return self._port
+
+        @port.setter
+        def port(self, value):
+            if value is None:
+                self._port = None
+            elif isinstance(value, (str, int)):
+                self._port = value
+            elif isinstance(value, (bytes, bytearray)):
+                self._port = value.decode("utf-8")
+            else:
+                raise TypeError("Port must be of a string or integer type")
+
+        @property
+        def userinfo(self):
+            return self._userinfo
+
+        @userinfo.setter
+        def userinfo(self, value):
+            if value is None:
+                self._userinfo = None
+            elif isinstance(value, (bytes, bytearray)):
+                self._userinfo = self._parse_userinfo(value).decode("utf-8")
+            elif isinstance(value, str):
+                self._userinfo = self._parse_userinfo(value.encode("utf-8")).decode("utf-8")
+            else:
+                raise TypeError("User information must be of a string type")
 
     class Path(XRI.Path):
 
@@ -669,6 +922,9 @@ class IRI(XRI):
                 return cls(map(IRI.pct_decode, string.split("/")))
             else:
                 raise TypeError("Path value must be a string")
+
+        def compose(self):
+            return str(self)
 
         def __eq__(self, other):
             if isinstance(other, (bytes, bytearray, str)):
@@ -782,9 +1038,9 @@ class IRI(XRI):
         if value is None:
             self._authority = None
         elif isinstance(value, (bytes, bytearray)):
-            self._authority = self._parse_authority(value).decode("utf-8")
+            self._authority = IRI.Authority.parse(value)
         elif isinstance(value, str):
-            self._authority = self._parse_authority(value.encode("utf-8")).decode("utf-8")
+            self._authority = IRI.Authority.parse(value.encode("utf-8"))
         else:
             raise TypeError("Authority must be of a string type")
 
@@ -855,6 +1111,9 @@ class IRI(XRI):
     @fragment.deleter
     def fragment(self):
         self._fragment = None
+
+    def compose(self):
+        return str(self)
 
     def resolve(self, ref, strict=True):
         raise NotImplementedError
