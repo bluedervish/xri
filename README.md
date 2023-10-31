@@ -70,3 +70,54 @@ Other characters passed to this argument will give a `ValueError`.
 ```
 ! # $ & ' ( ) * + , / : ; = ? @ [ ]
 ```
+
+
+## Advantages over built-in `urllib.parse` module
+
+### Correct handling of character encodings
+
+RFC 3986 specifies that extended characters (beyond the ASCII range) are not supported directly within URIs.
+When used, these should always be encoded with UTF-8 before percent encoding.
+IRIs (defined in RFC 3987) do however allow such characters. 
+
+`urllib.parse` does not enforce this behaviour according to the RFCs, and does not support UTF-8 encoded bytes as input values.
+```python
+>>> urlparse("https://example.com/ä").path
+'/ä'
+>>> urlparse("https://example.com/ä".encode("utf-8")).path
+UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 20: ordinal not in range(128)
+```
+
+Conversely, `xri` handles these scenarios correctly according to the RFCs.
+```python
+>>> URI("https://example.com/ä").path
+URI.Path(b'/%C3%A4')
+>>> URI("https://example.com/ä".encode("utf-8")).path
+URI.Path(b'/%C3%A4')
+>>> IRI("https://example.com/ä").path
+IRI.Path('/ä')
+>>> IRI("https://example.com/ä".encode("utf-8")).path
+IRI.Path('/ä')
+```
+
+### Optional components may be empty
+Optional URI components, such as _query_ and _fragment_ are allowed to be present but empty, [according to RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4).
+As such, there is a semantic difference between an empty component and a missing component.
+When composed, this will be denoted by the absence or presence of a marker character (`'?'` in the case of the query component).
+
+The `urlparse` function does not distinguish between empty and missing components;
+both are treated as "missing".
+```python
+>>> urlparse("https://example.com/a").geturl()
+'https://example.com/a'
+>>> urlparse("https://example.com/a?").geturl()
+'https://example.com/a'
+```
+
+`xri`, on the other hand, correctly distinguishes between these cases:
+```python
+>>> str(URI("https://example.com/a"))
+'https://example.com/a'
+>>> str(URI("https://example.com/a?"))
+'https://example.com/a?'
+```

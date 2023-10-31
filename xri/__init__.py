@@ -409,9 +409,14 @@ class XRI:
         therefore relevant. If we set xri.path = "abc%20def" for example, we literally
         mean "abc%20def" and not "abc def".
         """
-        scheme, colon, scheme_specific_part = string.partition(symbols.COLON)
-        if not colon:
-            scheme, scheme_specific_part = None, scheme
+        if string.startswith(symbols.SLASH):
+            # Parse as relative reference
+            scheme, scheme_specific_part = None, string
+        else:
+            # Parse as absolute URI
+            scheme, colon, scheme_specific_part = string.partition(symbols.COLON)
+            if not colon:
+                scheme, scheme_specific_part = None, scheme
         auth_path_query, hash_sign, fragment = scheme_specific_part.partition(symbols.HASH)
         if not hash_sign:
             fragment = None
@@ -779,8 +784,6 @@ class URI(XRI):
         # TODO
         if value is None:
             self._query = None
-        elif len(value) == 0:
-            raise ValueError("Query cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
             self._query = self._parse_query(value)
         elif isinstance(value, str):
@@ -801,8 +804,6 @@ class URI(XRI):
         # TODO
         if value is None:
             self._fragment = None
-        elif len(value) == 0:
-            raise ValueError("Fragment cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
             self._fragment = self._parse_fragment(value)
         elif isinstance(value, str):
@@ -1094,8 +1095,6 @@ class IRI(XRI):
         # TODO
         if value is None:
             self._query = None
-        elif len(value) == 0:
-            raise ValueError("Query cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
             self._query = self._parse_query(value).decode("utf-8")
         elif isinstance(value, str):
@@ -1116,8 +1115,6 @@ class IRI(XRI):
         # TODO
         if value is None:
             self._fragment = None
-        elif len(value) == 0:
-            raise ValueError("Fragment cannot be an empty string (but could be None)")
         elif isinstance(value, (bytes, bytearray)):
             self._fragment = self._parse_fragment(value).decode("utf-8")
         elif isinstance(value, str):

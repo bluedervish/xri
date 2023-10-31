@@ -73,6 +73,10 @@ class ParsingTest(XRITestCase):
         "http://example.com/abc?def=ghi&jkl=mno": ("http", "example.com", "/abc", "def=ghi&jkl=mno", None),
         "http://example.com/abc?def=ghi&jkl=mno#pqr": ("http", "example.com", "/abc", "def=ghi&jkl=mno", "pqr"),
         "https://example.com/abc%20def": ("https", "example.com", "/abc def", None, None),
+        "/abc/def": (None, None, "/abc/def", None, None),
+        "//abc/def": (None, "abc", "/def", None, None),
+        "//abc:123/def": (None, "abc:123", "/def", None, None),
+        "///abc/def": (None, "", "/abc/def", None, None),
     }
 
     def test_uri_cases(self):
