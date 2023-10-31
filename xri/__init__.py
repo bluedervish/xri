@@ -21,7 +21,7 @@ from collections.abc import MutableSequence
 from typing import Optional, List
 
 
-VERSION = "1.0.0a1"
+VERSION = "0.7.0"
 
 
 ALPHA_UPPER = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
