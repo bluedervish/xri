@@ -392,6 +392,13 @@ class XRI:
             parts.append(f"fragment={self.fragment!r}")
         return f"<{self.__class__.__name__} {' '.join(parts)}>"
 
+    def __iter__(self):
+        yield "scheme", self.scheme
+        yield "authority", self.authority
+        yield "path", self.path
+        yield "query", self.query
+        yield "fragment", self.fragment
+
     @classmethod
     def _parse(cls, string: bytes, symbols) -> \
             (Optional[bytes], Optional[bytes], bytes, Optional[bytes], Optional[bytes]):
@@ -536,6 +543,11 @@ class URI(XRI):
             obj.port = port
             obj.userinfo = userinfo
             return obj
+
+        def __iter__(self):
+            yield "userinfo", self.userinfo
+            yield "host", self.host
+            yield "port", self.port
 
         def __eq__(self, other):
             if isinstance(other, (bytes, bytearray, str)):
@@ -838,6 +850,11 @@ class IRI(XRI):
             obj.port = port
             obj.userinfo = userinfo
             return obj
+
+        def __iter__(self):
+            yield "userinfo", self.userinfo
+            yield "host", self.host
+            yield "port", self.port
 
         def __eq__(self, other):
             if isinstance(other, (bytes, bytearray, str)):
