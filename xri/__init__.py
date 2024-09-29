@@ -20,7 +20,7 @@ from abc import ABC
 from typing import Optional, List
 
 
-VERSION = "0.7.1"
+VERSION = "0.7.2"
 
 
 ALPHA_UPPER = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
