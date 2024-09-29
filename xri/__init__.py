@@ -598,6 +598,9 @@ class URI(XRI):
             except AttributeError:
                 return False
 
+        def __hash__(self):
+            return hash((self.userinfo, self.host, self.port))
+
         def __bytes__(self):
             parts = [self._host]
             if self._port is not None:
@@ -924,6 +927,9 @@ class IRI(XRI):
                 return (self.userinfo, self.host, self.port) == (other.userinfo, other.host, other.port)
             except AttributeError:
                 return False
+
+        def __hash__(self):
+            return hash((self.userinfo, self.host, self.port))
 
         def __bytes__(self):
             parts = [self._host]
