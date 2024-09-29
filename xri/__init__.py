@@ -714,7 +714,10 @@ class URI(XRI):
         def __eq__(self, other):
             if isinstance(other, (bytes, bytearray, str)):
                 other = self.parse(other)
-            return (self.userinfo, self.host, self.port) == (other.userinfo, other.host, other.port)
+            try:
+                return (self.userinfo, self.host, self.port) == (other.userinfo, other.host, other.port)
+            except AttributeError:
+                return False
 
         def __bytes__(self):
             parts = [self._host]
@@ -1038,7 +1041,10 @@ class IRI(XRI):
         def __eq__(self, other):
             if isinstance(other, (bytes, bytearray, str)):
                 other = self.parse(other)
-            return (self.userinfo, self.host, self.port) == (other.userinfo, other.host, other.port)
+            try:
+                return (self.userinfo, self.host, self.port) == (other.userinfo, other.host, other.port)
+            except AttributeError:
+                return False
 
         def __bytes__(self):
             parts = [self._host]
