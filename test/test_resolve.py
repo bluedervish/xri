@@ -16,13 +16,13 @@
 # limitations under the License.
 
 
-from unittest import TestCase, skip
+from unittest import TestCase
 
+from test.test_parsing import XRITestCase
 from xri import XRI
 
 
-@skip
-class ResolutionTest(TestCase):
+class ResolutionTest(XRITestCase):
     """
     See: https://datatracker.ietf.org/doc/html/rfc3986#section-5.4
     """
@@ -82,13 +82,13 @@ class ResolutionTest(TestCase):
             string = string.encode("ascii")
             parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
-                self.assertEqual(base.resolve(string), parts)
+                self.assert_components(base.resolve(string), *parts)
 
     def test_iri_normal_examples(self):
         base = XRI(self.base)
         for string, parts in self.normal_examples.items():
             with self.subTest(string):
-                self.assertEqual(base.resolve(string), parts)
+                self.assert_components(base.resolve(string), *parts)
 
     def test_uri_abnormal_examples(self):
         base = XRI(self.base.encode("ascii"))
@@ -96,26 +96,26 @@ class ResolutionTest(TestCase):
             string = string.encode("ascii")
             parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
-                self.assertEqual(base.resolve(string), parts)
+                self.assert_components(base.resolve(string), *parts)
 
     def test_iri_abnormal_examples(self):
         base = XRI(self.base)
         for string, parts in self.abnormal_examples.items():
             with self.subTest(string):
-                self.assertEqual(base.resolve(string), parts)
+                self.assert_components(base.resolve(string), *parts)
 
     def test_uri_strict_true(self):
         base = XRI(self.base.encode("ascii"))
-        self.assertEqual(base.resolve(b"http:g", strict=True), (b"http", None, b"g", None, None))
+        self.assert_components(base.resolve(b"http:g", strict=True), b"http", None, b"g", None, None)
 
     def test_uri_strict_false(self):
         base = XRI(self.base.encode("ascii"))
-        self.assertEqual(base.resolve(b"http:g", strict=False), (b"http", b"a", b"/b/c/g", None, None))
+        self.assert_components(base.resolve(b"http:g", strict=False), b"http", b"a", b"/b/c/g", None, None)
 
     def test_iri_strict_true(self):
         base = XRI(self.base)
-        self.assertEqual(base.resolve("http:g", strict=True), ("http", None, "g", None, None))
+        self.assert_components(base.resolve("http:g", strict=True), "http", None, "g", None, None)
 
     def test_iri_strict_false(self):
         base = XRI(self.base)
-        self.assertEqual(base.resolve("http:g", strict=False), ("http", "a", "/b/c/g", None, None))
+        self.assert_components(base.resolve("http:g", strict=False), "http", "a", "/b/c/g", None, None)

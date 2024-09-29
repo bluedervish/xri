@@ -16,19 +16,8 @@
 # limitations under the License.
 
 
-from unittest import TestCase
-
+from test import XRITestCase
 from xri import XRI, URI, IRI
-
-
-class XRITestCase(TestCase):
-
-    def assert_components(self, xri, scheme, authority, path, query, fragment):
-        self.assertEqual(xri.scheme, scheme)
-        self.assertEqual(xri.authority, authority)
-        self.assertEqual(xri.path, path)
-        self.assertEqual(xri.query, query)
-        self.assertEqual(xri.fragment, fragment)
 
 
 class ParsingTest(XRITestCase):
@@ -77,6 +66,10 @@ class ParsingTest(XRITestCase):
         "//abc/def": (None, "abc", "/def", None, None),
         "//abc:123/def": (None, "abc:123", "/def", None, None),
         "///abc/def": (None, "", "/abc/def", None, None),
+        "http://user:password@host": ("http", "user:password@host", "", None, None),
+        "http://user:p@ssword@host": ("http", "user:p@ssword@host", "", None, None),
+        "http://user:p%40ssword@host": ("http", "user:p%40ssword@host", "", None, None),
+        "http://user:p%41ssword@host": ("http", "user:p%41ssword@host", "", None, None),
     }
 
     def test_uri_cases(self):

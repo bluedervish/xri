@@ -17,11 +17,10 @@
 
 
 from abc import ABC
-from collections.abc import MutableSequence
 from typing import Optional, List
 
 
-VERSION = "0.7.0"
+VERSION = "0.7.1"
 
 
 ALPHA_UPPER = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -152,20 +151,34 @@ class XRI:
         @classmethod
         def parse(cls, string):
             """ Parse and decode a string value into an Authority object.
+
+            >>> XRI.Authority.parse(b'example.com')
+            URI.Authority(b'example.com')
+            >>> XRI.Authority.parse('example.com')
+            IRI.Authority('example.com')
+
             """
             if isinstance(string, (bytes, bytearray)):
                 return URI.Authority.parse(string)
             elif isinstance(string, str):
                 return IRI.Authority.parse(string)
-            else:
+            else:  # pragma: no cover
                 raise TypeError("Authority value must be a string")
 
         def __new__(cls, host, port=None, userinfo=None):
+            """ Create a new Authority object directly.
+
+            >>> XRI.Authority(b'example.com', port=8080, userinfo=b'alice')
+            URI.Authority(b'example.com', port=8080, userinfo=b'alice')
+            >>> XRI.Authority('example.com', port=8080, userinfo='alice')
+            IRI.Authority('example.com', port=8080, userinfo='alice')
+
+            """
             if isinstance(host, (bytes, bytearray)):
                 return URI.Authority(host, port=port, userinfo=userinfo)
             elif isinstance(host, str):
                 return IRI.Authority(host, port=port, userinfo=userinfo)
-            else:
+            else:  # pragma: no cover
                 raise TypeError("Host value must be a string")
 
         def __repr__(self):
@@ -176,7 +189,7 @@ class XRI:
                 parts.append(f"userinfo={self._userinfo!r}")
             return f"{self.__class__.__qualname__}({', '.join(parts)})"
 
-    class Path(MutableSequence, ABC):
+    class Path(ABC):
 
         @classmethod
         def parse(cls, string):
@@ -189,6 +202,24 @@ class XRI:
             else:
                 raise TypeError("Path value must be a string")
 
+        def startswith(self, value) -> bool:
+            """ Return true if the path starts with the given value, which
+            can either be a string or an iterable of string segments.
+            """
+            raise NotImplementedError
+
+        def partition(self, separator):
+            raise NotImplementedError
+
+        def rpartition(self, separator):
+            raise NotImplementedError
+
+        def compose(self):
+            raise NotImplementedError
+
+        def is_absolute(self) -> bool:
+            return len(self._segments) >= 2 and not self._segments[0]
+
         def __new__(cls, segments=()):
             if isinstance(segments, (bytes, bytearray, str)):
                 return cls.parse(segments)
@@ -200,20 +231,30 @@ class XRI:
         def __repr__(self):
             return f"{self.__class__.__qualname__}([{', '.join(map(repr, self._segments))}])"
 
+        def __bool__(self):
+            n_segments = len(self._segments)
+            if n_segments == 0:
+                return False
+            elif n_segments == 1 and not self._segments[0]:
+                return False
+            else:
+                return True
+
+        def __add__(self, other):
+            cls = self.__class__
+            obj = cls(self)
+            obj._segments += iter(cls(other))
+            return obj
+
         def __len__(self):
             return len(self._segments)
 
         def __iter__(self):
             return iter(self._segments)
 
-        def __getitem__(self, index):
-            return self._segments[index]
-
-        def __setitem__(self, index, value):
-            raise NotImplementedError
-
-        def __delitem__(self, index):
-            del self._segments[index]
+        @property
+        def segments(self):
+            return self._segments
 
         def insert(self, index, value):
             raise NotImplementedError
@@ -403,11 +444,6 @@ class XRI:
     def _parse(cls, string: bytes, symbols) -> \
             (Optional[bytes], Optional[bytes], bytes, Optional[bytes], Optional[bytes]):
         """ Parse the input string into a 5-tuple.
-
-        Percent decoding is carried out here, as opposed to when setting the individual
-        properties. Only when combined as a full URI/IRI is percent encoding useful and
-        therefore relevant. If we set xri.path = "abc%20def" for example, we literally
-        mean "abc%20def" and not "abc def".
         """
         if string.startswith(symbols.SLASH):
             # Parse as relative reference
@@ -436,7 +472,7 @@ class XRI:
         else:
             authority = None
             path = hierarchical_part
-        return tuple(map(cls.pct_decode, (scheme, authority, path, query, fragment)))
+        return cls.pct_decode(scheme), authority, path, query, cls.pct_decode(fragment)
 
     @classmethod
     def _parse_scheme(cls, string: bytes) -> bytes:
@@ -484,7 +520,7 @@ class XRI:
         # TODO
         return bytes(string)
 
-    def _compose(self, symbols) -> List[bytes]:
+    def _compose(self, symbols) -> List:
         """ Implementation of RFC3986, section 5.3
 
         :return:
@@ -517,6 +553,127 @@ class XRI:
 
     def resolve(self, ref, strict=True):
         raise NotImplementedError
+
+    # def resolve(self, ref, strict=True):
+    #     """ Transform a reference URI relative to a base URI to produce a full target
+    #     URI.
+    #
+    #     .. seealso::
+    #         `RFC 3986 § 5.2.2`_
+    #     .. _`RFC 3986 § 5.2.2`: http://tools.ietf.org/html/rfc3986#section-5.2.2
+    #     """
+    #     cls = self.__class__
+    #     if self.scheme is None:
+    #         raise TypeError(f"Cannot resolve against a {cls.__name__} with no scheme")
+    #     ref = cls(ref)
+    #     if ref is None:
+    #         return None
+    #     if not strict and ref.scheme == self.scheme:
+    #         ref_scheme = None
+    #     else:
+    #         ref_scheme = ref.scheme
+    #     if ref_scheme is not None:
+    #         target_scheme = ref_scheme
+    #         target_authority = ref.authority
+    #         target_path = remove_dot_segments(ref.path)
+    #         target_query = ref.query
+    #     else:
+    #         if ref.authority is not None:
+    #             target_authority = ref.authority
+    #             target_path = remove_dot_segments(ref.path)
+    #             target_query = ref.query
+    #         else:
+    #             if not ref.path:
+    #                 target_path = self.path
+    #                 if ref.query is not None:
+    #                     target_query = ref.query
+    #                 else:
+    #                     target_query = self.query
+    #             else:
+    #                 if ref.path.is_absolute():
+    #                     target_path = remove_dot_segments(ref.path)
+    #                 else:
+    #                     target_path = self._merge_paths(ref.path)
+    #                     target_path = remove_dot_segments(target_path)
+    #                 target_query = ref.query
+    #             target_authority = self.authority
+    #         target_scheme = self.scheme
+    #     target_fragment = ref.fragment
+    #     return cls(target_scheme, target_authority, target_path, target_query, target_fragment)
+
+    # def _merge_paths(self, ref_path: Path) -> Path:
+    #     """
+    #
+    #     See: https://www.rfc-editor.org/rfc/rfc3986#section-5.2.3
+    #     """
+    #     cls = self.__class__
+    #     if self.authority is not None and not self.path:
+    #         return cls.Path(b"") + ref_path
+    #     elif len(self.path) >= 2:   # "/" in self.path
+    #         return cls.Path(self.path[:-1] + ref_path)
+    #     else:
+    #         return ref_path
+
+    # @classmethod
+    # def _remove_dot_segments(cls, path: Path) -> Path:
+    #     """
+    #
+    #     See: https://www.rfc-editor.org/rfc/rfc3986#section-5.2.4
+    #     """
+    #     # TODO
+    #     # TODO: str vs bytes
+    #     out = cls.Path()
+    #     while path:
+    #         if path.starts_with("../") or path.starts_with("./"):
+    #             # If the input buffer begins with a prefix of "../" or "./",
+    #             # then remove that prefix from the input buffer; otherwise,
+    #             del path[0]
+    #         elif path.starts_with("/./"):
+    #             # if the input buffer begins with a prefix of "/./", then
+    #             # replace that prefix with "/" in the input buffer; otherwise,
+    #             del path[1]
+    #         elif len(path) == 2 and path[0] == "" and path[1] == ".":
+    #             # if the input buffer begins with a prefix of "/.",
+    #             # where "." is a complete path segment, then replace that
+    #             # prefix with "/" in the input buffer; otherwise,
+    #             path[1] = path[0]
+    #         elif len(path) > 2 and path[0] == "" and path[1] == "..":
+    #             # if the input buffer begins with a prefix of "/../", then
+    #             # replace that prefix with "/" in the input buffer and remove
+    #             # the last segment and its preceding "/" (if any) from the
+    #             # output buffer; otherwise,
+    #             pass  # TODO
+    #             # del path[0]
+    #             # del path[1]
+    #             # if len(out) >= 1:
+    #             #     del out[-1]
+    #         elif len(path) == 2 and path[0] == "" and path[1] == "..":
+    #             # if the input buffer begins with a prefix of "/..",
+    #             # where ".." is a complete path segment, then replace that
+    #             # prefix with "/" in the input buffer and remove the last
+    #             # segment and its preceding "/" (if any) from the output
+    #             # buffer; otherwise,
+    #             pass  # TODO
+    #             # del path[1]
+    #             # if len(out) >= 1:
+    #             #     del out[-1]
+    #         elif len(path) == 1 and path[0] in {".", ".."}:
+    #             # if the input buffer consists only of "." or "..", then remove
+    #             # that from the input buffer; otherwise,
+    #             del path[0]
+    #         else:
+    #             # move the first path segment in the input buffer to the end of
+    #             # the output buffer, including the initial "/" character (if
+    #             # any) and any subsequent characters up to, but not including,
+    #             # the next "/" character or the end of the input buffer.
+    #             pass  # TODO
+    #             # if path.startswith("/"):
+    #             #     path = path[1:]
+    #             #     out += "/"
+    #             # seg, slash, path = path.partition("/")
+    #             # out += seg
+    #             # path = slash + path
+    #     return out
 
 
 class URI(XRI):
@@ -638,6 +795,26 @@ class URI(XRI):
             else:
                 raise TypeError("Path value must be a string")
 
+        def startswith(self, value) -> bool:
+            if isinstance(value, (bytes, bytearray, str)):
+                return self.compose().startswith(URI.Path(value).compose())
+            else:
+                self_segments = self._segments
+                if len(self_segments) >= len(value):
+                    for i, segment in enumerate(value):
+                        if _to_bytes(segment) != self_segments[i]:
+                            return False
+                    else:
+                        return True
+                else:
+                    return False
+
+        def partition(self, separator) -> (bytes, bytes, bytes):
+            return bytes(self).partition(separator)
+
+        def rpartition(self, separator) -> (bytes, bytes, bytes):
+            return bytes(self).rpartition(separator)
+
         def compose(self):
             return bytes(self)
 
@@ -654,12 +831,6 @@ class URI(XRI):
 
         def __repr__(self):
             return f"{self.__class__.__qualname__}({bytes(self)!r})"
-
-        def __setitem__(self, index, value):
-            if isinstance(value, str):
-                self._segments[index] = value.encode("utf-8")
-            else:
-                self._segments[index] = bytes(value)
 
         def insert(self, index, value):
             if isinstance(value, str):
@@ -748,7 +919,7 @@ class URI(XRI):
         elif isinstance(value, str):
             self._authority = URI.Authority.parse(value.encode("utf-8"))
         else:
-            raise TypeError("Authority must be of a string type")
+            self._authority = URI.Authority.parse(bytes(value))
 
     @authority.deleter
     def authority(self):
@@ -819,7 +990,14 @@ class URI(XRI):
         return bytes(self)
 
     def resolve(self, ref, strict=True):
-        raise NotImplementedError
+        scheme, authority, path, query, fragment = _resolve(self, XRI(ref), strict, _BYTE_SYMBOLS)
+        obj = super().__new__(self.__class__, b"")
+        obj.scheme = scheme
+        obj.authority = authority
+        obj.path = path
+        obj.query = query
+        obj.fragment = fragment
+        return obj
 
 
 class IRI(XRI):
@@ -941,6 +1119,26 @@ class IRI(XRI):
             else:
                 raise TypeError("Path value must be a string")
 
+        def startswith(self, value) -> bool:
+            if isinstance(value, (str, bytes, bytearray)):
+                return self.compose().startswith(IRI.Path(value).compose())
+            else:
+                self_segments = self._segments
+                if len(self_segments) >= len(value):
+                    for i, segment in enumerate(value):
+                        if _to_str(segment) != self_segments[i]:
+                            return False
+                    else:
+                        return True
+                else:
+                    return False
+
+        def partition(self, separator) -> (str, str, str):
+            return str(self).partition(separator)
+
+        def rpartition(self, separator) -> (str, str, str):
+            return str(self).rpartition(separator)
+
         def compose(self):
             return str(self)
 
@@ -957,12 +1155,6 @@ class IRI(XRI):
 
         def __repr__(self):
             return f"{self.__class__.__qualname__}({str(self)!r})"
-
-        def __setitem__(self, index, value):
-            if isinstance(value, (bytes, bytearray)):
-                self._segments[index] = value.decode("utf-8")
-            else:
-                self._segments[index] = str(value)
 
         def insert(self, index, value):
             if isinstance(value, (bytes, bytearray)):
@@ -1060,7 +1252,7 @@ class IRI(XRI):
         elif isinstance(value, str):
             self._authority = IRI.Authority.parse(value.encode("utf-8"))
         else:
-            raise TypeError("Authority must be of a string type")
+            self._authority = IRI.Authority.parse(str(value))
 
     @authority.deleter
     def authority(self):
@@ -1130,7 +1322,14 @@ class IRI(XRI):
         return str(self)
 
     def resolve(self, ref, strict=True):
-        raise NotImplementedError
+        scheme, authority, path, query, fragment = _resolve(self, XRI(ref), strict, _STRING_SYMBOLS)
+        obj = super().__new__(self.__class__, "")
+        obj.scheme = scheme
+        obj.authority = authority
+        obj.path = path
+        obj.query = query
+        obj.fragment = fragment
+        return obj
 
 
 def _resolve(base: XRI, ref: XRI, strict: bool, symbols):
@@ -1181,18 +1380,6 @@ def _resolve(base: XRI, ref: XRI, strict: bool, symbols):
     return scheme, authority, path, query, fragment
 
 
-def _resolve_xri(base, ref, strict=True):
-    if isinstance(base.path, (bytes, bytearray)):
-        return XRI(*_resolve(base, XRI(ref), strict, _BYTE_SYMBOLS))
-    elif isinstance(base.path, str):
-        return XRI(*_resolve(base, XRI(ref), strict, _STRING_SYMBOLS))
-    else:
-        return NotImplemented
-
-
-XRI.resolve = _resolve_xri
-
-
 def _merge_path(authority, path, relative_path_ref, symbols):
     """ Implementation of RFC3986, section 5.2.3
 
@@ -1206,17 +1393,21 @@ def _merge_path(authority, path, relative_path_ref, symbols):
     if authority is not None and not path:
         return symbols.SLASH + relative_path_ref
     else:
+        path_string = path.compose()
+        ref_string = relative_path_ref.compose()
         try:
-            last_slash = path.rindex(symbols.SLASH)
+            last_slash = path_string.rindex(symbols.SLASH)
         except ValueError:
-            return relative_path_ref
+            return ref_string
         else:
-            return path[:(last_slash + 1)] + relative_path_ref
+            return path_string[:(last_slash + 1)] + ref_string
 
 
 def _remove_dot_segments(path, symbols):
     """ Implementation of RFC3986, section 5.2.4
     """
+    if isinstance(path, XRI.Path):
+        path = path.compose()
     new_path = symbols.EMPTY
     while path:
         if path.startswith(symbols.DOT_DOT_SLASH):
