@@ -97,3 +97,26 @@ class HashingTest(XRITestCase):
         first = XRI("https://example.com/a")
         second = "https://example.com/a"
         self.assertEqual(hash(first), hash(second))
+
+
+class FuzzyEqualityTest(XRITestCase):
+
+    def test_uri_equality(self):
+        first = XRI(b"https://example.com/a")
+        second = XRI(b"http://example.com/a/")
+        self.assertTrue(first.equals(second, http_equals_https=True, ignore_trailing_slash=True))
+
+    def test_iri_equality(self):
+        first = XRI("https://example.com/a")
+        second = XRI("http://example.com/a/")
+        self.assertTrue(first.equals(second, http_equals_https=True, ignore_trailing_slash=True))
+
+    def test_uri_to_iri_equality(self):
+        first = XRI(b"https://example.com/a")
+        second = XRI("http://example.com/a/")
+        self.assertTrue(first.equals(second, http_equals_https=True, ignore_trailing_slash=True))
+
+    def test_iri_to_uri_equality(self):
+        first = XRI("https://example.com/a")
+        second = XRI(b"http://example.com/a/")
+        self.assertTrue(first.equals(second, http_equals_https=True, ignore_trailing_slash=True))

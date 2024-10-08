@@ -770,16 +770,35 @@ class URI(XRI):
         # compatible characters should exist within the _compose output.
         return b"".join(self._compose(_BYTE_SYMBOLS)).decode("ascii")
 
-    def __eq__(self, other):
-        other = self.__class__(other)
-        return (self.scheme == other.scheme and
-                self.authority == other.authority and
-                self.path == other.path and
-                self.query == other.query and
-                self.fragment == other.fragment)
-
     def __hash__(self):
         return hash(self.compose())
+
+    def __eq__(self, other):
+        return self.equals(other)
+
+    def equals(self, other, http_equals_https=False, ignore_trailing_slash=False) -> bool:
+        # TODO: allow ignore order of query parameters
+        # TODO: allow ignore fragment
+        other = self.__class__(other)
+        self_scheme = self.scheme
+        other_scheme = other.scheme
+        if http_equals_https:
+            if self_scheme == b"https":
+                self_scheme = b"http"
+            if other_scheme == b"https":
+                other_scheme = b"http"
+        self_path = self.path.compose()
+        other_path = other.path.compose()
+        if ignore_trailing_slash:
+            if self_path.endswith(b"/"):
+                self_path = self_path[:-1]
+            if other_path.endswith(b"/"):
+                other_path = other_path[:-1]
+        return (self_scheme == other_scheme and
+                self.authority == other.authority and
+                self_path == other_path and
+                self.query == other.query and
+                self.fragment == other.fragment)
 
     @property
     def scheme(self):
@@ -1120,16 +1139,35 @@ class IRI(XRI):
     def __str__(self):
         return "".join(self._compose(_STRING_SYMBOLS))
 
-    def __eq__(self, other):
-        other = self.__class__(other)
-        return (self.scheme == other.scheme and
-                self.authority == other.authority and
-                self.path == other.path and
-                self.query == other.query and
-                self.fragment == other.fragment)
-
     def __hash__(self):
         return hash(self.compose())
+
+    def __eq__(self, other):
+        return self.equals(other)
+
+    def equals(self, other, http_equals_https=False, ignore_trailing_slash=False) -> bool:
+        # TODO: allow ignore order of query parameters
+        # TODO: allow ignore fragment
+        other = self.__class__(other)
+        self_scheme = self.scheme
+        other_scheme = other.scheme
+        if http_equals_https:
+            if self_scheme == "https":
+                self_scheme = "http"
+            if other_scheme == "https":
+                other_scheme = "http"
+        self_path = self.path.compose()
+        other_path = other.path.compose()
+        if ignore_trailing_slash:
+            if self_path.endswith("/"):
+                self_path = self_path[:-1]
+            if other_path.endswith("/"):
+                other_path = other_path[:-1]
+        return (self_scheme == other_scheme and
+                self.authority == other.authority and
+                self_path == other_path and
+                self.query == other.query and
+                self.fragment == other.fragment)
 
     @property
     def scheme(self):
