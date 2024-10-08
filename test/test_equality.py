@@ -64,3 +64,36 @@ class InequalityTest(XRITestCase):
         first = XRI("https://example.com/a")
         second = XRI(b"https://example.com/b")
         self.assertNotEqual(first, second)
+
+
+class HashingTest(XRITestCase):
+
+    def test_uri_hash_equality(self):
+        first = XRI(b"https://example.com/a")
+        second = XRI(b"https://example.com/a")
+        self.assertEqual(hash(first), hash(second))
+
+    def test_iri_hash_equality(self):
+        first = XRI("https://example.com/a")
+        second = XRI("https://example.com/a")
+        self.assertEqual(hash(first), hash(second))
+
+    def test_uri_to_iri_hash_equality(self):
+        first = XRI(b"https://example.com/a")
+        second = XRI("https://example.com/a")
+        self.assertEqual(hash(first), hash(second))
+
+    def test_iri_to_uri_hash_equality(self):
+        first = XRI("https://example.com/a")
+        second = XRI(b"https://example.com/a")
+        self.assertEqual(hash(first), hash(second))
+
+    def test_uri_to_string_hash_equality(self):
+        first = XRI(b"https://example.com/a")
+        second = "https://example.com/a"
+        self.assertEqual(hash(first), hash(second))
+
+    def test_iri_to_string_hash_equality(self):
+        first = XRI("https://example.com/a")
+        second = "https://example.com/a"
+        self.assertEqual(hash(first), hash(second))

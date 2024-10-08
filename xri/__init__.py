@@ -778,6 +778,9 @@ class URI(XRI):
                 self.query == other.query and
                 self.fragment == other.fragment)
 
+    def __hash__(self):
+        return hash(self.compose())
+
     @property
     def scheme(self):
         return self._scheme
@@ -1124,6 +1127,9 @@ class IRI(XRI):
                 self.path == other.path and
                 self.query == other.query and
                 self.fragment == other.fragment)
+
+    def __hash__(self):
+        return hash(self.compose())
 
     @property
     def scheme(self):
