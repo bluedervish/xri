@@ -433,6 +433,14 @@ class XRI:
             parts.append(f"fragment={self.fragment!r}")
         return f"<{self.__class__.__name__} {' '.join(parts)}>"
 
+    def __eq__(self, other):
+        other = self.__class__(other)
+        return (self.scheme == other.scheme and
+                self.authority == other.authority and
+                self.path == other.path and
+                self.query == other.query and
+                self.fragment == other.fragment)
+
     def __iter__(self):
         yield "scheme", self.scheme
         yield "authority", self.authority
@@ -761,6 +769,14 @@ class URI(XRI):
         # characters outside of the ASCII range. Therefore, only ASCII-
         # compatible characters should exist within the _compose output.
         return b"".join(self._compose(_BYTE_SYMBOLS)).decode("ascii")
+
+    def __eq__(self, other):
+        other = self.__class__(other)
+        return (self.scheme == other.scheme and
+                self.authority == other.authority and
+                self.path == other.path and
+                self.query == other.query and
+                self.fragment == other.fragment)
 
     @property
     def scheme(self):
@@ -1100,6 +1116,14 @@ class IRI(XRI):
 
     def __str__(self):
         return "".join(self._compose(_STRING_SYMBOLS))
+
+    def __eq__(self, other):
+        other = self.__class__(other)
+        return (self.scheme == other.scheme and
+                self.authority == other.authority and
+                self.path == other.path and
+                self.query == other.query and
+                self.fragment == other.fragment)
 
     @property
     def scheme(self):
