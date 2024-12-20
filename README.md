@@ -13,7 +13,7 @@ The `URI` and `IRI` types defined in this library implement those definitions an
 To parse, simply pass a string value into the `URI.parse` or `IRI.parse` method.
 These can both accept either `bytes` or `str` values, and will encode or decode UTF-8 values as required.
 
-```python-repl
+```python
 >>> from xri import URI
 >>> URI.parse("http://alice@example.com/a/b/c?q=x#z")
 {'scheme': b'http',
