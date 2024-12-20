@@ -5,26 +5,28 @@ It is currently work-in-progress and, as such, is not recommended for production
 
 The generic syntax for URIs is defined in [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/).
 This is extended in the IRI specification, [RFC 3987](https://datatracker.ietf.org/doc/html/rfc3987/), to support extended characters outside of the ASCII range. 
-The `URI` and `IRI` types defined in this library implement those definitions and store their constituent parts as `bytes` or `str` values respectively.
+
+The library defines `URI` and `IRI` classes which provide access to parsing, composition and resolution methods.
 
 
 ## Parsing a URI or IRI
 
 To parse, simply pass a string value into the `URI.parse` or `IRI.parse` method.
 These can both accept either `bytes` or `str` values, and will encode or decode UTF-8 values as required.
+A dictionary is returned containing a breakdown of the component parts.
 
 ```python
 >>> from xri import URI
->>> URI.parse("http://alice@example.com/ä/b/c?q=x#z")
+>>> URI.parse("http://alice:p4ssw0rd!@example.com:8080/ä/b/c?q=x#z")
 {'scheme': 'http',
  'authority': 'alice@example.com',
  'path': '/%C3%A4/b/c',
  'query': 'q=x',
  'fragment': 'z',
- 'userinfo': 'alice',
+ 'userinfo': 'alice:p4ssw0rd!',
  'host': 'example.com',
- 'port': '',
- 'port_number': None,
+ 'port': '8080',
+ 'port_number': 8080,
  'path_segments': ['', 'ä', 'b', 'c'],
  'query_parameters': [('q', 'x')],
  'origin': 'http://example.com'}
