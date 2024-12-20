@@ -16,189 +16,77 @@
 # limitations under the License.
 
 
-from test import XRITestCase
-from xri import XRI, URI, IRI
+from unittest import TestCase
+
+from xri import URI, IRI
+from xri._util import to_bytes, to_str
+from .fixtures import component_fixtures
 
 
-class ParsingTest(XRITestCase):
+class URIParseTestCase(TestCase):
 
-    cases = {
-
-        # Examples taken from https://datatracker.ietf.org/doc/html/rfc3986#section-1.1.2
-        "ftp://ftp.is.co.za/rfc/rfc1808.txt": ("ftp", "ftp.is.co.za", "/rfc/rfc1808.txt", None, None),
-        "http://www.ietf.org/rfc/rfc2396.txt": ("http", "www.ietf.org", "/rfc/rfc2396.txt", None, None),
-        "ldap://[2001:db8::7]/c=GB?objectClass?one": ("ldap", "[2001:db8::7]", "/c=GB", "objectClass?one", None),
-        "mailto:John.Doe@example.com": ("mailto", None, "John.Doe@example.com", None, None),
-        "news:comp.infosystems.www.servers.unix": ("news", None, "comp.infosystems.www.servers.unix", None, None),
-        "tel:+1-816-555-1212": ("tel", None, "+1-816-555-1212", None, None),
-        "telnet://192.0.2.16:80/": ("telnet", "192.0.2.16:80", "/", None, None),
-        "urn:oasis:names:specification:docbook:dtd:xml:4.1.2":
-            ("urn", None, "oasis:names:specification:docbook:dtd:xml:4.1.2", None, None),
-
-        # Examples taken from https://datatracker.ietf.org/doc/html/rfc3986#section-3
-        "foo://example.com:8042/over/there?name=ferret#nose":
-            ("foo", "example.com:8042", "/over/there", "name=ferret", "nose"),
-        "urn:example:animal:ferret:nose": ("urn", None, "example:animal:ferret:nose", None, None),
-
-        # Examples taken from https://datatracker.ietf.org/doc/html/rfc3986#section-3.3
-        "mailto:fred@example.com": ("mailto", None, "fred@example.com", None, None),
-        "foo://info.example.com?fred": ("foo", "info.example.com", "", "fred", None),
-
-        # Examples taken from https://datatracker.ietf.org/doc/html/rfc3986#section-5.4
-        "http://a/b/c/d;p?q": ("http", "a", "/b/c/d;p", "q", None),
-
-        # Examples taken from https://datatracker.ietf.org/doc/html/rfc3986#section-7.6
-        "ftp://cnn.example.com&story=breaking_news@10.0.0.1/top_story.htm":
-            ("ftp", "cnn.example.com&story=breaking_news@10.0.0.1", "/top_story.htm", None, None),
-
-        # Additional examples
-        "": (None, None, "", None, None),
-        "filename.ext": (None, None, "filename.ext", None, None),
-        "file:filename.ext": ("file", None, "filename.ext", None, None),
-        "file:///path/to/filename.ext": ("file", "", "/path/to/filename.ext", None, None),
-        "http://example.com": ("http", "example.com", "", None, None),
-        "http://example.com/": ("http", "example.com", "/", None, None),
-        "http://example.com/#bookmark": ("http", "example.com", "/", None, "bookmark"),
-        "http://example.com/abc?def=ghi&jkl=mno": ("http", "example.com", "/abc", "def=ghi&jkl=mno", None),
-        "http://example.com/abc?def=ghi&jkl=mno#pqr": ("http", "example.com", "/abc", "def=ghi&jkl=mno", "pqr"),
-        "https://example.com/abc%20def": ("https", "example.com", "/abc def", None, None),
-        "/abc/def": (None, None, "/abc/def", None, None),
-        "//abc/def": (None, "abc", "/def", None, None),
-        "//abc:123/def": (None, "abc:123", "/def", None, None),
-        "///abc/def": (None, "", "/abc/def", None, None),
-        "http://user:password@host": ("http", "user:password@host", "", None, None),
-        "http://user:p@ssword@host": ("http", "user:p@ssword@host", "", None, None),
-        "http://user:p%40ssword@host": ("http", "user:p%40ssword@host", "", None, None),
-        "http://user:p%41ssword@host": ("http", "user:p%41ssword@host", "", None, None),
-    }
-
-    def test_uri_cases(self):
-        for string, parts in self.cases.items():
-            string = string.encode("ascii")
+    def test_parsing_uri_from_str(self):
+        for string, parts in component_fixtures.items():
             parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
-                xri = XRI(string)
-                self.assert_components(xri, *parts)
+                parsed = URI.parse(to_str(string))
+                self.assertEqual(parts[0], parsed["scheme"])
+                self.assertEqual(parts[1], parsed["authority"])
+                self.assertEqual(parts[2], parsed["path"])
+                self.assertEqual(parts[3], parsed["query"])
+                self.assertEqual(parts[4], parsed["fragment"])
 
-    def test_iri_cases(self):
-        for string, parts in self.cases.items():
+    def test_parsing_uri_from_bytes(self):
+        for string, parts in component_fixtures.items():
+            parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
-                xri = XRI(string)
-                self.assert_components(xri, *parts)
+                parsed = URI.parse(to_bytes(string))
+                self.assertEqual(parts[0], parsed["scheme"])
+                self.assertEqual(parts[1], parsed["authority"])
+                self.assertEqual(parts[2], parsed["path"])
+                self.assertEqual(parts[3], parsed["query"])
+                self.assertEqual(parts[4], parsed["fragment"])
+
+    def test_parsing_uri_from_bytearray(self):
+        for string, parts in component_fixtures.items():
+            parts = tuple(None if part is None else part.encode("ascii") for part in parts)
+            with self.subTest(string):
+                parsed = URI.parse(bytearray(to_bytes(string)))
+                self.assertEqual(parts[0], parsed["scheme"])
+                self.assertEqual(parts[1], parsed["authority"])
+                self.assertEqual(parts[2], parsed["path"])
+                self.assertEqual(parts[3], parsed["query"])
+                self.assertEqual(parts[4], parsed["fragment"])
 
 
-class XRICastingTest(XRITestCase):
+class IRIParseTestCase(TestCase):
 
-    def test_none_to_none(self):
-        xri = XRI(None)
-        self.assertIsNone(xri)
+    def test_parsing_iri_from_str(self):
+        for string, parts in component_fixtures.items():
+            with self.subTest(string):
+                parsed = IRI.parse(to_str(string))
+                self.assertEqual(parts[0], parsed["scheme"])
+                self.assertEqual(parts[1], parsed["authority"])
+                self.assertEqual(parts[2], parsed["path"])
+                self.assertEqual(parts[3], parsed["query"])
+                self.assertEqual(parts[4], parsed["fragment"])
 
-    def test_empty_bytes_to_empty_uri(self):
-        xri = XRI(b"")
-        self.assert_components(xri, None, None, b"", None, None)
+    def test_parsing_iri_from_bytes(self):
+        for string, parts in component_fixtures.items():
+            with self.subTest(string):
+                parsed = IRI.parse(to_bytes(string))
+                self.assertEqual(parts[0], parsed["scheme"])
+                self.assertEqual(parts[1], parsed["authority"])
+                self.assertEqual(parts[2], parsed["path"])
+                self.assertEqual(parts[3], parsed["query"])
+                self.assertEqual(parts[4], parsed["fragment"])
 
-    def test_empty_string_to_empty_iri(self):
-        xri = XRI("")
-        self.assert_components(xri, None, None, "", None, None)
-
-    def test_str_to_iri(self):
-        iri = XRI("https://example.com/a")
-        self.assertIsInstance(iri, IRI)
-
-    def test_bytes_to_uri(self):
-        uri = XRI(b"https://example.com/a")
-        self.assertIsInstance(uri, URI)
-
-    def test_bytearray_to_uri(self):
-        uri = XRI(bytearray(b"https://example.com/a"))
-        self.assertIsInstance(uri, URI)
-
-    def test_iri_to_iri(self):
-        iri = XRI(IRI("https://example.com/a"))
-        self.assertIsInstance(iri, IRI)
-
-    def test_uri_to_uri(self):
-        uri = XRI(URI(b"https://example.com/a"))
-        self.assertIsInstance(uri, URI)
-
-
-class URICastingTest(XRITestCase):
-
-    def test_none_to_none(self):
-        uri = URI(None)
-        self.assertIsNone(uri)
-
-    def test_empty_bytes_to_empty_uri(self):
-        uri = URI(b"")
-        self.assert_components(uri, None, None, b"", None, None)
-
-    def test_empty_string_to_empty_uri(self):
-        uri = URI("")
-        self.assert_components(uri, None, None, b"", None, None)
-
-    def test_str_to_uri(self):
-        uri = URI("https://example.com/ä")
-        self.assertIsInstance(uri, URI)
-        self.assert_components(uri, b"https", b"example.com", b"/\xC3\xA4", None, None)
-        self.assertEqual(str(uri), "https://example.com/%C3%A4")
-
-    def test_bytes_to_uri(self):
-        uri = URI(b"https://example.com/a")
-        self.assertIsInstance(uri, URI)
-        self.assert_components(uri, b"https", b"example.com", b"/a", None, None)
-
-    def test_bytearray_to_uri(self):
-        uri = URI(bytearray(b"https://example.com/a"))
-        self.assertIsInstance(uri, URI)
-        self.assert_components(uri, b"https", b"example.com", b"/a", None, None)
-
-    def test_iri_to_uri(self):
-        uri = URI(IRI("https://example.com/ä"))
-        self.assertIsInstance(uri, URI)
-        self.assert_components(uri, b"https", b"example.com", b"/\xC3\xA4", None, None)
-        self.assertEqual(str(uri), "https://example.com/%C3%A4")
-
-    def test_uri_to_uri(self):
-        uri = URI(URI(b"https://example.com/a"))
-        self.assertIsInstance(uri, URI)
-        self.assert_components(uri, b"https", b"example.com", b"/a", None, None)
-
-
-class IRICastingTest(XRITestCase):
-
-    def test_none_to_none(self):
-        iri = IRI(None)
-        self.assertIsNone(iri)
-
-    def test_empty_bytes_to_empty_iri(self):
-        iri = IRI(b"")
-        self.assert_components(iri, None, None, "", None, None)
-
-    def test_empty_string_to_empty_iri(self):
-        iri = IRI("")
-        self.assert_components(iri, None, None, "", None, None)
-
-    def test_str_to_uri(self):
-        iri = IRI("https://example.com/ä")
-        self.assertIsInstance(iri, IRI)
-        self.assert_components(iri, "https", "example.com", "/ä", None, None)
-
-    def test_bytes_to_uri(self):
-        iri = IRI(b"https://example.com/a")
-        self.assertIsInstance(iri, IRI)
-        self.assert_components(iri, "https", "example.com", "/a", None, None)
-
-    def test_bytearray_to_uri(self):
-        iri = IRI(bytearray(b"https://example.com/a"))
-        self.assertIsInstance(iri, IRI)
-        self.assert_components(iri, "https", "example.com", "/a", None, None)
-
-    def test_iri_to_iri(self):
-        iri = IRI(IRI("https://example.com/ä"))
-        self.assertIsInstance(iri, IRI)
-        self.assert_components(iri, "https", "example.com", "/ä", None, None)
-
-    def test_uri_to_iri(self):
-        iri = IRI(URI(b"https://example.com/a"))
-        self.assertIsInstance(iri, IRI)
-        self.assert_components(iri, "https", "example.com", "/a", None, None)
+    def test_parsing_iri_from_bytearray(self):
+        for string, parts in component_fixtures.items():
+            with self.subTest(string):
+                parsed = IRI.parse(bytearray(to_bytes(string)))
+                self.assertEqual(parts[0], parsed["scheme"])
+                self.assertEqual(parts[1], parsed["authority"])
+                self.assertEqual(parts[2], parsed["path"])
+                self.assertEqual(parts[3], parsed["query"])
+                self.assertEqual(parts[4], parsed["fragment"])

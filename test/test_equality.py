@@ -16,107 +16,88 @@
 # limitations under the License.
 
 
-from test import XRITestCase
-from xri import XRI
+from unittest import TestCase
+
+from xri import URI, IRI
 
 
-class EqualityTest(XRITestCase):
+class TypeEquivalenceTestCase(TestCase):
 
-    def test_uri_equality(self):
-        first = XRI(b"https://example.com/a")
-        second = XRI(b"https://example.com/a")
-        self.assertEqual(first, second)
+    def test_equal_bytes_and_bytes(self):
+        first = b"https://example.com/a"
+        second = b"https://example.com/a"
+        self.assertTrue(URI.equal(first, second))
+        self.assertTrue(IRI.equal(first, second))
 
-    def test_iri_equality(self):
-        first = XRI("https://example.com/a")
-        second = XRI("https://example.com/a")
-        self.assertEqual(first, second)
-
-    def test_uri_to_iri_equality(self):
-        first = XRI(b"https://example.com/a")
-        second = XRI("https://example.com/a")
-        self.assertEqual(first, second)
-
-    def test_iri_to_uri_equality(self):
-        first = XRI("https://example.com/a")
-        second = XRI(b"https://example.com/a")
-        self.assertEqual(first, second)
-
-
-class InequalityTest(XRITestCase):
-
-    def test_uri_inequality(self):
-        first = XRI(b"https://example.com/a")
-        second = XRI(b"https://example.com/b")
-        self.assertNotEqual(first, second)
-
-    def test_iri_inequality(self):
-        first = XRI("https://example.com/a")
-        second = XRI("https://example.com/b")
-        self.assertNotEqual(first, second)
-
-    def test_uri_to_iri_inequality(self):
-        first = XRI(b"https://example.com/a")
-        second = XRI("https://example.com/b")
-        self.assertNotEqual(first, second)
-
-    def test_iri_to_uri_inequality(self):
-        first = XRI("https://example.com/a")
-        second = XRI(b"https://example.com/b")
-        self.assertNotEqual(first, second)
-
-
-class HashingTest(XRITestCase):
-
-    def test_uri_hash_equality(self):
-        first = XRI(b"https://example.com/a")
-        second = XRI(b"https://example.com/a")
-        self.assertEqual(hash(first), hash(second))
-
-    def test_iri_hash_equality(self):
-        first = XRI("https://example.com/a")
-        second = XRI("https://example.com/a")
-        self.assertEqual(hash(first), hash(second))
-
-    def test_uri_to_iri_hash_equality(self):
-        first = XRI(b"https://example.com/a")
-        second = XRI("https://example.com/a")
-        self.assertEqual(hash(first), hash(second))
-
-    def test_iri_to_uri_hash_equality(self):
-        first = XRI("https://example.com/a")
-        second = XRI(b"https://example.com/a")
-        self.assertEqual(hash(first), hash(second))
-
-    def test_uri_to_string_hash_equality(self):
-        first = XRI(b"https://example.com/a")
+    def test_equal_str_and_str(self):
+        first = "https://example.com/a"
         second = "https://example.com/a"
-        self.assertEqual(hash(first), hash(second))
+        self.assertTrue(URI.equal(first, second))
+        self.assertTrue(IRI.equal(first, second))
 
-    def test_iri_to_string_hash_equality(self):
-        first = XRI("https://example.com/a")
+    def test_equal_bytes_and_str(self):
+        first = b"https://example.com/a"
         second = "https://example.com/a"
-        self.assertEqual(hash(first), hash(second))
+        self.assertTrue(URI.equal(first, second))
+        self.assertTrue(URI.equal(second, first))
+        self.assertTrue(IRI.equal(first, second))
+        self.assertTrue(IRI.equal(second, first))
+
+    def test_almost_equal_bytes_and_bytes(self):
+        first = b"https://example.com/a"
+        second = b"http://example.com/a/"
+        self.assertTrue(URI.equal(first, second, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(URI.equal(second, first, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(IRI.equal(first, second, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(IRI.equal(second, first, http_equals_https=True, ignore_trailing_slash=True))
+
+    def test_almost_equal_str_and_str(self):
+        first = "https://example.com/a"
+        second = "http://example.com/a/"
+        self.assertTrue(URI.equal(first, second, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(URI.equal(second, first, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(IRI.equal(first, second, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(IRI.equal(second, first, http_equals_https=True, ignore_trailing_slash=True))
+
+    def test_almost_equal_bytes_and_str(self):
+        first = b"https://example.com/a"
+        second = "http://example.com/a/"
+        self.assertTrue(URI.equal(first, second, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(URI.equal(second, first, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(IRI.equal(first, second, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(IRI.equal(second, first, http_equals_https=True, ignore_trailing_slash=True))
+
+    def test_almost_equal_str_and_bytes(self):
+        first = "https://example.com/a"
+        second = b"http://example.com/a/"
+        self.assertTrue(URI.equal(first, second, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(URI.equal(second, first, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(IRI.equal(first, second, http_equals_https=True, ignore_trailing_slash=True))
+        self.assertTrue(IRI.equal(second, first, http_equals_https=True, ignore_trailing_slash=True))
 
 
-class FuzzyEqualityTest(XRITestCase):
+class InequalityTest(TestCase):
 
-    def test_uri_equality(self):
-        first = XRI(b"https://example.com/a")
-        second = XRI(b"http://example.com/a/")
-        self.assertTrue(first.equals(second, http_equals_https=True, ignore_trailing_slash=True))
+    def test_unequal_bytes_and_bytes(self):
+        first = b"https://example.com/a"
+        second = b"https://example.com/b"
+        self.assertFalse(URI.equal(first, second))
+        self.assertFalse(IRI.equal(first, second))
 
-    def test_iri_equality(self):
-        first = XRI("https://example.com/a")
-        second = XRI("http://example.com/a/")
-        self.assertTrue(first.equals(second, http_equals_https=True, ignore_trailing_slash=True))
+    def test_unequal_str_and_str(self):
+        first = "https://example.com/a"
+        second = "https://example.com/b"
+        self.assertFalse(URI.equal(first, second))
+        self.assertFalse(IRI.equal(first, second))
 
-    def test_uri_to_iri_equality(self):
-        first = XRI(b"https://example.com/a")
-        second = XRI("http://example.com/a/")
-        self.assertTrue(first.equals(second, http_equals_https=True, ignore_trailing_slash=True))
+    def test_unequal_bytes_and_str(self):
+        first = b"https://example.com/a"
+        second = "https://example.com/b"
+        self.assertFalse(URI.equal(first, second))
+        self.assertFalse(IRI.equal(first, second))
 
-    def test_iri_to_uri_equality(self):
-        first = XRI("https://example.com/a")
-        second = XRI(b"http://example.com/a/")
-        self.assertTrue(first.equals(second, http_equals_https=True, ignore_trailing_slash=True))
+    def test_unequal_str_and_bytes(self):
+        first = "https://example.com/a"
+        second = b"https://example.com/b"
+        self.assertFalse(URI.equal(first, second))
+        self.assertFalse(IRI.equal(first, second))

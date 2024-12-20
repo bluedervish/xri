@@ -8,39 +8,27 @@ This is extended in the IRI specification, [RFC 3987](https://datatracker.ietf.o
 The `URI` and `IRI` types defined in this library implement those definitions and store their constituent parts as `bytes` or `str` values respectively.
 
 
-## Creating a URI or IRI
+## Parsing a URI or IRI
 
-To get started, simply pass a string value into the `URI` or `IRI` constructor.
+To parse, simply pass a string value into the `URI.parse` or `IRI.parse` method.
 These can both accept either `bytes` or `str` values, and will encode or decode UTF-8 values as required.
 
 ```python-repl
 >>> from xri import URI
->>> uri = URI("http://alice@example.com/a/b/c?q=x#z")
->>> uri
-<URI scheme=b'http' authority=URI.Authority(b'example.com', userinfo=b'alice') \
-     path=URI.Path(b'/a/b/c') query=b'q=x' fragment=b'z'>
->>> uri.scheme = "https"
->>> print(uri)
-https://alice@example.com/a/b/c?q=x#z
+>>> URI.parse("http://alice@example.com/a/b/c?q=x#z")
+{'scheme': b'http',
+ 'authority': b'alice@example.com',
+ 'path': b'/a/b/c',
+ 'query': b'q=x',
+ 'fragment': b'z',
+ 'userinfo': b'alice',
+ 'host': b'example.com',
+ 'port': b'',
+ 'port_number': None,
+ 'path_segments': [b'', b'a', b'b', b'c'],
+ 'query_parameters': [(b'q', b'x')],
+ 'origin': b'http://example.com'}
 ```
-
-
-## Component parts
-
-Each `URI` or `IRI` object is fully mutable, allowing any component parts to be get, set, or deleted.
-The following component parts are available:
-
-- `URI`/`IRI` object
-  - `.scheme` (None or string)
-  - `.authority` (None or `Authority` object)
-    - `.userinfo` (None or string) 
-    - `.host` (string)
-    - `.port` (None, string or int)
-  - `.path` (`Path` object - can be used as an iterable of segment strings)
-  - `.query` (None or `Query` object)
-  - `.fragment` (None or string)
-
-(The type "string" here refers to `bytes` or `bytearray` for `URI` objects, and `str` for `IRI` objects.)
 
 
 ## Percent encoding and decoding
@@ -88,9 +76,11 @@ IRIs (defined in RFC 3987) do however allow such characters.
 UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 20: ordinal not in range(128)
 ```
 
+TODO: BELOW
+
 Conversely, `xri` handles these scenarios correctly according to the RFCs.
 ```python
->>> URI("https://example.com/ä").path
+>>> URI.parse("https://example.com/ä")["path"]
 URI.Path(b'/%C3%A4')
 >>> URI("https://example.com/ä".encode("utf-8")).path
 URI.Path(b'/%C3%A4')

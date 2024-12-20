@@ -16,8 +16,16 @@
 # limitations under the License.
 
 
-VERSION = "0.8.0"
+from unittest import TestCase
+
+from xri import URI
+from .fixtures import component_fixtures
 
 
-from .uri import URI
-from .iri import IRI
+class URIComposeTestCase(TestCase):
+
+    def test_cases(self):
+        for string, parts in component_fixtures.items():
+            with self.subTest(string):
+                composed = URI.compose(*parts)
+                self.assertEqual(string.encode("ascii"), composed)
