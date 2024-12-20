@@ -20,31 +20,18 @@ from .uri import URI
 from ._util import to_str
 
 
+TO_PCT_ENCODED_PRINTABLE = str.maketrans(dict(zip(
+    (chr(i) for i in range(256)),
+    (chr(i) if 33 <= i <= 126 or i >= 160 else f"%{i:02X}" for i in range(256)),
+)))
+
+
 class IRI(URI):
 
-    EMPTY = ""
-
-    SLASH = "/"
-    COLON = ":"
-    AT = "@"
-    AMPERSAND = "&"
-    HASH = "#"
-    QUERY = "?"
-    EQUALS = "="
-    DOT = "."
-
-    SLASH_SLASH = SLASH + SLASH
-    DOT_DOT = DOT + DOT
-    DOT_SLASH = DOT + SLASH
-    DOT_DOT_SLASH = DOT + DOT + SLASH
-    SLASH_DOT = SLASH + DOT
-    SLASH_DOT_SLASH = SLASH + DOT + SLASH
-    SLASH_DOT_DOT = SLASH + DOT + DOT
-    SLASH_DOT_DOT_SLASH = SLASH + DOT + DOT + SLASH
-
     @classmethod
-    def stringify(cls, value):
-        return to_str(value)
+    def normalize(cls, value):
+        str_value = to_str(value)
+        return str_value.translate(TO_PCT_ENCODED_PRINTABLE)
 
     @classmethod
     def is_unreserved(cls, code):

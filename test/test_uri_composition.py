@@ -28,4 +28,4 @@ class URIComposeTestCase(TestCase):
         for string, parts in component_fixtures.items():
             with self.subTest(string):
                 composed = URI.compose(*parts)
-                self.assertEqual(string.encode("ascii"), composed)
+                self.assertEqual(string, composed)

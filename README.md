@@ -15,19 +15,19 @@ These can both accept either `bytes` or `str` values, and will encode or decode 
 
 ```python
 >>> from xri import URI
->>> URI.parse("http://alice@example.com/a/b/c?q=x#z")
-{'scheme': b'http',
- 'authority': b'alice@example.com',
- 'path': b'/a/b/c',
- 'query': b'q=x',
- 'fragment': b'z',
- 'userinfo': b'alice',
- 'host': b'example.com',
- 'port': b'',
+>>> URI.parse("http://alice@example.com/ä/b/c?q=x#z")
+{'scheme': 'http',
+ 'authority': 'alice@example.com',
+ 'path': '/%C3%A4/b/c',
+ 'query': 'q=x',
+ 'fragment': 'z',
+ 'userinfo': 'alice',
+ 'host': 'example.com',
+ 'port': '',
  'port_number': None,
- 'path_segments': [b'', b'a', b'b', b'c'],
- 'query_parameters': [(b'q', b'x')],
- 'origin': b'http://example.com'}
+ 'path_segments': ['', 'ä', 'b', 'c'],
+ 'query_parameters': [('q', 'x')],
+ 'origin': 'http://example.com'}
 ```
 
 
@@ -45,6 +45,7 @@ These operate slightly differently, depending on the base class, as a slightly d
 '20%25%20of%20%24125%20is%20%2425'
 >>> URI.pct_encode("20% of £125 is £25")                        # '£' is encoded with UTF-8
 '20%25%20of%20%C2%A3125%20is%20%C2%A325'
+>>> from xri import IRI
 >>> IRI.pct_encode("20% of £125 is £25")                        # '£' is safe within an IRI
 '20%25%20of%20£125%20is%20£25'
 >>> URI.pct_decode('20%25%20of%20%C2%A3125%20is%20%C2%A325')    # str in, str out (using UTF-8)
@@ -70,28 +71,23 @@ IRIs (defined in RFC 3987) do however allow such characters.
 
 `urllib.parse` does not enforce this behaviour according to the RFCs, and does not support UTF-8 encoded bytes as input values.
 ```python
+>>> from urllib.parse import urlparse
 >>> urlparse("https://example.com/ä").path
 '/ä'
 >>> urlparse("https://example.com/ä".encode("utf-8")).path
 UnicodeDecodeError: 'ascii' codec can't decode byte 0xc3 in position 20: ordinal not in range(128)
 ```
 
-TODO: BELOW
-
 Conversely, `xri` handles these scenarios correctly according to the RFCs.
 ```python
->>> URI.parse("https://example.com/ä")["path"]
-URI.Path(b'/%C3%A4')
->>> URI("https://example.com/ä".encode("utf-8")).path
-URI.Path(b'/%C3%A4')
->>> IRI("https://example.com/ä").path
-IRI.Path('/ä')
->>> IRI("https://example.com/ä".encode("utf-8")).path
-IRI.Path('/ä')
+>>> URI.parse("https://example.com/ä b")["path"]
+'/%C3%A4%20b'
+>>> IRI.parse("https://example.com/ä b")["path"]
+'/ä%20b'
 ```
 
 ### Optional components may be empty
-Optional URI components, such as _query_ and _fragment_ are allowed to be present but empty, [according to RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4).
+Optional URI components, such as _query_ and _fragment_, are allowed to be present but empty, [according to RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986/#section-3.4).
 As such, there is a semantic difference between an empty component and a missing component.
 When composed, this will be denoted by the absence or presence of a marker character (`'?'` in the case of the query component).
 
@@ -106,8 +102,10 @@ both are treated as "missing".
 
 `xri`, on the other hand, correctly distinguishes between these cases:
 ```python
->>> str(URI("https://example.com/a"))
+>>> uri = URI.parse("https://example.com/a")
+>>> URI.compose(uri["scheme"], uri["authority"], uri["path"], uri["query"], uri["fragment"])
 'https://example.com/a'
->>> str(URI("https://example.com/a?"))
+>>> uri = URI.parse("https://example.com/a?")
+>>> URI.compose(uri["scheme"], uri["authority"], uri["path"], uri["query"], uri["fragment"])
 'https://example.com/a?'
 ```

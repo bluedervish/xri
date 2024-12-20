@@ -41,16 +41,16 @@ class URIResolveTestCase(TestCase):
 
     def test_uri_strict_true(self):
         resolved = URI.resolve(resolver_base, "http:g", strict=True)
-        self.assertEqual(b"http:g", resolved)
+        self.assertEqual("http:g", resolved)
 
     def test_uri_strict_false(self):
         resolved = URI.resolve(resolver_base, "http:g", strict=False)
-        self.assertEqual(b"http://a/b/c/g", resolved)
+        self.assertEqual("http://a/b/c/g", resolved)
 
     def test_base_uri_with_authority_and_no_path(self):
         resolved = URI.resolve("http://a", "b")
-        self.assertEqual(b"http://a/b", resolved)
+        self.assertEqual("http://a/b", resolved)
 
     def test_empty_base_uri(self):
         resolved = URI.resolve("", "a")
-        self.assertEqual(b"a", resolved)
+        self.assertEqual("a", resolved)

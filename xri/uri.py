@@ -16,8 +16,7 @@
 # limitations under the License.
 
 
-from ._util import to_bytes
-
+from ._util import to_str
 
 GENERAL_DELIMITERS = b":/?#[]@"
 SUB_DELIMITERS = b"!$&'()*+,;="
@@ -30,33 +29,13 @@ FRAGMENT_SAFE = SUB_DELIMITERS + b":/?@"
 
 CHARS = [chr(i).encode("iso-8859-1") for i in range(256)]
 PCT_ENCODED_CHARS = [f"%{i:02X}".encode("ascii") for i in range(256)]
+TO_PCT_ENCODED_PRINTABLE = str.maketrans(dict(zip(
+    (chr(i) for i in range(256)),
+    (chr(i) if 33 <= i <= 126 else f"%{i:02X}" for i in range(256)),
+)))
 
 
 class URI:
-
-    EMPTY = b""
-
-    SLASH = b"/"
-    COLON = b":"
-    AT = b"@"
-    AMPERSAND = b"&"
-    HASH = b"#"
-    QUERY = b"?"
-    EQUALS = b"="
-    DOT = b"."
-
-    SLASH_SLASH = SLASH + SLASH
-    DOT_DOT = DOT + DOT
-    DOT_SLASH = DOT + SLASH
-    DOT_DOT_SLASH = DOT + DOT + SLASH
-    SLASH_DOT = SLASH + DOT
-    SLASH_DOT_SLASH = SLASH + DOT + SLASH
-    SLASH_DOT_DOT = SLASH + DOT + DOT
-    SLASH_DOT_DOT_SLASH = SLASH + DOT + DOT + SLASH
-
-    @classmethod
-    def stringify(cls, value):
-        return to_bytes(value)
 
     @classmethod
     def is_unreserved(cls, code):
@@ -192,16 +171,16 @@ class URI:
         self_scheme = self["scheme"]
         other_scheme = other["scheme"]
         if http_equals_https:
-            if self_scheme == cls.stringify("https"):
-                self_scheme = cls.stringify("http")
-            if other_scheme == cls.stringify("https"):
-                other_scheme = cls.stringify("http")
+            if self_scheme == "https":
+                self_scheme = "http"
+            if other_scheme == "https":
+                other_scheme = "http"
         self_path = self["path"]
         other_path = other["path"]
         if ignore_trailing_slash:
-            if self_path.endswith(cls.SLASH):
+            if self_path.endswith("/"):
                 self_path = self_path[:-1]
-            if other_path.endswith(cls.SLASH):
+            if other_path.endswith("/"):
                 other_path = other_path[:-1]
         return (self_scheme == other_scheme and
                 self["authority"] == other["authority"] and
@@ -210,42 +189,49 @@ class URI:
                 self["fragment"] == other["fragment"])
 
     @classmethod
+    def normalize(cls, value):
+        str_value = to_str(value)
+        eight_bit_str_value = str_value.encode("utf-8").decode("iso-8859-1")
+        return eight_bit_str_value.translate(TO_PCT_ENCODED_PRINTABLE)
+
+    @classmethod
     def parse(cls, string) -> dict:
-        parts = cls._parse(cls.stringify(string))
+        parts = cls._parse(cls.normalize(string))
         parts.update(cls.parse_authority(parts["authority"]))
         parts.update(cls.parse_path(parts["path"]))
         parts.update(cls.parse_query(parts["query"]))
         if parts["scheme"] is not None and parts["authority"] is not None:
-            parts["origin"] = parts["scheme"] + cls.COLON + cls.SLASH_SLASH + parts["host"]
+            parts["origin"] = f"{parts['scheme']}://{parts['host']}"
             if parts["port"]:
-                parts["origin"] += cls.COLON + parts["port"]
+                parts["origin"] += f":{parts['port']}"
         else:
             parts["origin"] = None
         return parts
 
     @classmethod
     def _parse(cls, string) -> dict:
-        if string.startswith(cls.SLASH):
+        assert isinstance(string, str)
+        if string.startswith("/"):
             # Parse as relative reference
             scheme, scheme_specific_part = None, string
         else:
             # Parse as absolute URI
-            scheme, colon, scheme_specific_part = string.partition(cls.COLON)
+            scheme, colon, scheme_specific_part = string.partition(":")
             if not colon:
                 scheme, scheme_specific_part = None, scheme
-        auth_path_query, hash_sign, fragment = scheme_specific_part.partition(cls.HASH)
+        auth_path_query, hash_sign, fragment = scheme_specific_part.partition("#")
         if not hash_sign:
             fragment = None
-        hierarchical_part, question_mark, query = auth_path_query.partition(cls.QUERY)
+        hierarchical_part, question_mark, query = auth_path_query.partition("?")
         if not question_mark:
             query = None
-        if hierarchical_part.startswith(cls.SLASH_SLASH):
+        if hierarchical_part.startswith("//"):
             hierarchical_part = hierarchical_part[2:]
             try:
-                slash = hierarchical_part.index(cls.SLASH)
+                slash = hierarchical_part.index("/")
             except ValueError:
                 authority = hierarchical_part
-                path = cls.EMPTY
+                path = ""
             else:
                 authority = hierarchical_part[:slash]
                 path = hierarchical_part[slash:]
@@ -264,12 +250,12 @@ class URI:
     def parse_authority(cls, string):
         userinfo = host = port = None
         if string is not None:
-            if cls.AT in string:
-                userinfo, _, host_port = string.partition(cls.AT)
+            if "@" in string:
+                userinfo, _, host_port = string.partition("@")
             else:
                 userinfo = None
                 host_port = string
-            host, _, port = host_port.partition(cls.COLON)
+            host, _, port = host_port.partition(":")
         parts = {
             "userinfo": userinfo,
             "host": host,
@@ -284,7 +270,7 @@ class URI:
     @classmethod
     def parse_path(cls, string):
         return {
-            "path_segments": list(map(cls.pct_decode, string.split(cls.SLASH))),
+            "path_segments": list(map(cls.pct_decode, string.split("/"))),
         }
 
     @classmethod
@@ -293,9 +279,9 @@ class URI:
             parameters = None
         else:
             parameters = []
-            for item in string.split(cls.AMPERSAND):
-                if cls.EQUALS in item:
-                    key, _, value = item.partition(cls.EQUALS)
+            for item in string.split("&"):
+                if "=" in item:
+                    key, _, value = item.partition("=")
                     parameters.append((cls.pct_decode(key), cls.pct_decode(value)))
                 else:
                     parameters.append((cls.pct_decode(item), None))
@@ -309,24 +295,24 @@ class URI:
         if scheme is not None:
             # Percent encoding is not required for the scheme, as only
             # ASCII characters A-Z, a-z, 0-9, '+', '-', and '.' are allowed.
-            parts.append(cls.stringify(scheme))
-            parts.append(cls.COLON)
+            parts.append(scheme)
+            parts.append(":")
         if authority is not None:
             # TODO: percent encoding
-            parts.append(cls.SLASH_SLASH)
-            parts.append(cls.stringify(authority))
+            parts.append("//")
+            parts.append(authority)
         # TODO: full set of percent encoding rules for paths
-        parts.append(cls.stringify(path or cls.EMPTY))
+        parts.append(path or "")
         if query is not None:
             # TODO: percent encoding
-            parts.append(cls.QUERY)
-            parts.append(cls.stringify(query))
+            parts.append("?")
+            parts.append(query)
         if fragment is not None:
             # Fragments may contain any unreserved characters, sub-delimiters,
             # or any of ":@/?". Everything else must be percent encoded.
-            parts.append(cls.HASH)
-            parts.append(cls.pct_encode(cls.stringify(fragment), safe=FRAGMENT_SAFE))
-        return cls.EMPTY.join(parts)
+            parts.append("#")
+            parts.append(cls.pct_encode(fragment, safe=FRAGMENT_SAFE))
+        return "".join(parts)
 
     @classmethod
     def resolve(cls, base, ref, strict=True):
@@ -366,7 +352,7 @@ class URI:
                     else:
                         query = base["query"]
                 else:
-                    if ref["path"].startswith(cls.SLASH):
+                    if ref["path"].startswith("/"):
                         path = cls.remove_dot_segments(ref["path"])
                     else:
                         path = cls.merge_path(base["authority"], base["path"], ref["path"])
@@ -389,12 +375,12 @@ class URI:
         :return:
         """
         if authority is not None and not path:
-            return cls.SLASH + cls.stringify(relative_path_ref)
+            return "/" + relative_path_ref
         else:
-            path_string = cls.stringify(path)
-            ref_string = cls.stringify(relative_path_ref)
+            path_string = path
+            ref_string = relative_path_ref
             try:
-                last_slash = path_string.rindex(cls.SLASH)
+                last_slash = path_string.rindex("/")
             except ValueError:
                 return ref_string
             else:
@@ -404,29 +390,29 @@ class URI:
     def remove_dot_segments(cls, path):
         """ Implementation of RFC3986, section 5.2.4
         """
-        new_path = cls.EMPTY
+        new_path = ""
         while path:
-            if path.startswith(cls.DOT_DOT_SLASH):
+            if path.startswith("../"):
                 path = path[3:]
-            elif path.startswith(cls.DOT_SLASH):
+            elif path.startswith("./"):
                 path = path[2:]
-            elif path.startswith(cls.SLASH_DOT_SLASH):
+            elif path.startswith("/./"):
                 path = path[2:]
-            elif path == cls.SLASH_DOT:
-                path = cls.SLASH
-            elif path.startswith(cls.SLASH_DOT_DOT_SLASH):
+            elif path == "/.":
+                path = "/"
+            elif path.startswith("/../"):
                 path = path[3:]
-                new_path = new_path.rpartition(cls.SLASH)[0]
-            elif path == cls.SLASH_DOT_DOT:
-                path = cls.SLASH
-                new_path = new_path.rpartition(cls.SLASH)[0]
-            elif path in (cls.DOT, cls.DOT_DOT):
-                path = cls.EMPTY
+                new_path = new_path.rpartition("/")[0]
+            elif path == "/..":
+                path = "/"
+                new_path = new_path.rpartition("/")[0]
+            elif path in (".", ".."):
+                path = ""
             else:
-                if path.startswith(cls.SLASH):
+                if path.startswith("/"):
                     path = path[1:]
-                    new_path += cls.SLASH
-                seg, slash, path = path.partition(cls.SLASH)
+                    new_path += "/"
+                seg, slash, path = path.partition("/")
                 new_path += seg
                 path = slash + path
         return new_path

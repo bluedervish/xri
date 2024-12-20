@@ -19,5 +19,5 @@
 VERSION = "0.8.0"
 
 
-from .uri import URI
+from .uri import URI, RESERVED
 from .iri import IRI

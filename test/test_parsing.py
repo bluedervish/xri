@@ -27,7 +27,6 @@ class URIParseTestCase(TestCase):
 
     def test_parsing_uri_from_str(self):
         for string, parts in component_fixtures.items():
-            parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
                 parsed = URI.parse(to_str(string))
                 self.assertEqual(parts[0], parsed["scheme"])
@@ -38,7 +37,6 @@ class URIParseTestCase(TestCase):
 
     def test_parsing_uri_from_bytes(self):
         for string, parts in component_fixtures.items():
-            parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
                 parsed = URI.parse(to_bytes(string))
                 self.assertEqual(parts[0], parsed["scheme"])
@@ -49,7 +47,6 @@ class URIParseTestCase(TestCase):
 
     def test_parsing_uri_from_bytearray(self):
         for string, parts in component_fixtures.items():
-            parts = tuple(None if part is None else part.encode("ascii") for part in parts)
             with self.subTest(string):
                 parsed = URI.parse(bytearray(to_bytes(string)))
                 self.assertEqual(parts[0], parsed["scheme"])
@@ -57,6 +54,14 @@ class URIParseTestCase(TestCase):
                 self.assertEqual(parts[2], parsed["path"])
                 self.assertEqual(parts[3], parsed["query"])
                 self.assertEqual(parts[4], parsed["fragment"])
+
+    def test_parsing_space_in_uri(self):
+        parsed = URI.parse("http://example.com/a b")
+        self.assertEqual("/a%20b", parsed["path"])
+
+    def test_parsing_extended_characters_in_uri(self):
+        parsed = URI.parse("http://example.com/ä")
+        self.assertEqual("/%C3%A4", parsed["path"])
 
 
 class IRIParseTestCase(TestCase):
@@ -90,3 +95,11 @@ class IRIParseTestCase(TestCase):
                 self.assertEqual(parts[2], parsed["path"])
                 self.assertEqual(parts[3], parsed["query"])
                 self.assertEqual(parts[4], parsed["fragment"])
+
+    def test_parsing_space_in_iri(self):
+        parsed = IRI.parse("http://example.com/a b")
+        self.assertEqual("/a%20b", parsed["path"])
+
+    def test_parsing_extended_characters_in_iri(self):
+        parsed = IRI.parse("http://example.com/ä")
+        self.assertEqual("/ä", parsed["path"])
